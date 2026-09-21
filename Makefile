@@ -11,7 +11,7 @@ lint:
 typecheck:
 	uv run mypy .
 
-test:
+tests:
 	uv run pytest
 
 check:
