@@ -1,5 +1,6 @@
 install:
 	uv sync
+	uv run pre-commit install
 
 format:
 	uv run ruff format .
