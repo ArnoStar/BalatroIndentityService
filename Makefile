@@ -2,12 +2,15 @@ install:
 	uv sync
 	uv run pre-commit install
 
+run:
+	uv run uvicorn app.main:app --reload
+
 format:
 	uv run ruff format .
 	uv run ruff check . --fix
 
 lint:
-	uv run ruff check .
+	uv run ruff check . --fix
 
 typecheck:
 	uv run mypy .
