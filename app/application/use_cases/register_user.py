@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.application.dtos.user import RegisterUserInput, RegisterUserOutput
+from app.application.dtos.registration import RegisterUserInput, RegisterUserOutput
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
@@ -60,3 +60,16 @@ class RegisterUser:
         output: RegisterUserOutput = RegisterUserOutput(user_id=user.id)
 
         return output
+
+
+"""
+application/
+└── use_cases/
+    ├── register_user.py
+    ├── authenticate_user.py
+    ├── authenticate_oauth.py
+    ├── link_oauth_account.py
+    ├── unlink_oauth_account.py
+    ├── change_password.py
+    └── verify_email.py
+"""
