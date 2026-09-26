@@ -1,13 +1,21 @@
 from fastapi import APIRouter, Depends
 
-from app.application.dtos.authentication import AuthUserInput, AuthUserOutput
+from app.application.dtos.authentication import (
+    AuthUserInput,
+    AuthUserOutput,
+    RefreshTokenInput,
+    RefreshTokenOutput,
+)
 from app.application.dtos.registration import RegisterUserInput, RegisterUserOutput
 from app.bootstrap.container import RequestContainer
 from app.domain.value_object.email import Email
+from app.domain.value_object.tokens import RefreshToken
 from app.presentation.api.dependencies import get_container
 from app.presentation.api.schemas.auth import (
     AuthenticateUserRequest,
     AuthenticateUserResponse,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     RegisterUserRequest,
     RegisterUserResponse,
 )
@@ -41,6 +49,23 @@ async def authenticate_user(
     tokens: AuthUserOutput = await container.authenticate_user.execute(dto)
 
     return AuthenticateUserResponse(
+        access_token=tokens.token_pair.access_token.value,
+        refresh_token=tokens.token_pair.refresh_token.value,
+    )
+
+
+@router.post("/refresh-token", response_model=RefreshTokenResponse)
+def refresh_token(
+    request: RefreshTokenRequest,
+    container: RequestContainer = Depends(get_container),
+):
+    dto: RefreshTokenInput = RefreshTokenInput(
+        refresh_token=RefreshToken(request.refresh_token)
+    )
+
+    tokens: RefreshTokenOutput = container.refresh_user_token.execute(dto)
+
+    return RefreshTokenResponse(
         access_token=tokens.token_pair.access_token.value,
         refresh_token=tokens.token_pair.refresh_token.value,
     )
