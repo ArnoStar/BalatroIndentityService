@@ -1,11 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.oauth_account_repo import OAuthAccountRepo
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
 )
 from app.application.ports.repo.user_repo import UserRepo
 from app.application.use_cases.register_user import RegisterUser
+from app.infrastructure.bcrypt import BcryptPasswordHasher
 from app.infrastructure.sqlalchemy.repo.oauth_account_repo import (
     SqlalchemyOAuthAccountRepo,
 )
@@ -45,8 +47,12 @@ class RequestContainer:
             session=session,
         )
 
+        self.password_hasher: PasswordHasher = BcryptPasswordHasher()
+
         # Use cases
 
         self.register_user: RegisterUser = RegisterUser(
             user_repo=self.user_repo,
+            password_credential_repo=self.password_credential_repo,
+            password_hasher=self.password_hasher,
         )
