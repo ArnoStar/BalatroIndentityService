@@ -9,5 +9,10 @@ class _Settings(BaseSettings):
 
     sql_database_url: str = "postgresql+asyncpg://postgres:your_secure_password@localhost:5432/indentityservice"
 
+    jwt_secret: str = "secret"
+    jwt_algorithm: str = "HS256"
+    access_jwt_lifetime_minutes: int = 15
+    refresh_jwt_lifetime_days: int = 30
+
 
 settings = _Settings()
