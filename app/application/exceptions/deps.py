@@ -1,0 +1,2 @@
+class BelFlixException(Exception):
+    pass

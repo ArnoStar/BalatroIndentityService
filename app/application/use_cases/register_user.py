@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.application.dtos.registration import RegisterUserInput, RegisterUserOutput
+from app.application.exceptions.user import UserAlreadyExist
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
@@ -30,7 +31,7 @@ class RegisterUser:
         existing_user = await self.user_repo.get_by_email(dto.email)
 
         if existing_user is not None:
-            raise ValueError("User with this email already exists")
+            raise UserAlreadyExist
 
         now = datetime.now(UTC)
         user_id = uuid4()
@@ -71,5 +72,6 @@ application/
     ├── link_oauth_account.py
     ├── unlink_oauth_account.py
     ├── change_password.py
-    └── verify_email.py
+    ├── verify_email.py
+    └── refresh_token.py
 """
