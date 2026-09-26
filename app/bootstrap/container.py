@@ -10,6 +10,7 @@ from app.application.ports.repo.password_credential_repo import (
 from app.application.ports.repo.user_repo import UserRepo
 from app.application.ports.token_issuer import TokenIssuer
 from app.application.use_cases.authenticate_user import AuthenticateUser
+from app.application.use_cases.refresh_token import RefreshUserToken
 from app.application.use_cases.register_user import RegisterUser
 from app.infrastructure.bcrypt import BcryptPasswordHasher
 from app.infrastructure.config.settings import settings
@@ -75,4 +76,8 @@ class RequestContainer:
             password_credential_repo=self.password_credential_repo,
             password_hasher=self.password_hasher,
             token_issuer=self.token_issuer,
+        )
+
+        self.refresh_user_token: RefreshUserToken = RefreshUserToken(
+            token_issuer=self.token_issuer
         )
