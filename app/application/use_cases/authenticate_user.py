@@ -2,6 +2,7 @@ from app.application.dtos.authentication import (
     AuthUserInput,
     AuthUserOutput,
 )
+from app.application.exceptions.auth import InvalidEmailOrPassword
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
@@ -30,14 +31,14 @@ class AuthenticateUser:
         user = await self.user_repo.get_by_email(input.email)
 
         if user is None:
-            raise ValueError("Invalid email or password")
+            raise InvalidEmailOrPassword
 
         password_credential = await self.password_credential_repo.get_by_user_id(
             user.id
         )
 
         if password_credential is None:
-            raise ValueError("Invalid email or password")
+            raise InvalidEmailOrPassword
 
         password_valid = self.password_hasher.verify(
             input.password,
@@ -45,7 +46,7 @@ class AuthenticateUser:
         )
 
         if not password_valid:
-            raise ValueError("Invalid email or password")
+            raise InvalidEmailOrPassword
 
         token_pair = self.token_issuer.issue(user.id)
 
