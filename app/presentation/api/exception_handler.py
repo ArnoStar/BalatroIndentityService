@@ -3,7 +3,7 @@ from typing import TypeVar
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.application.exceptions.auth import InvalidEmailOrPassword
+from app.application.exceptions.auth import InvalidEmailOrPassword, InvalidOAuthState
 from app.application.exceptions.deps import BelFlixException
 from app.application.exceptions.password_credential import (
     PasswordCredentialAlreadyExist,
@@ -60,3 +60,5 @@ def register_exception_handlers(app: FastAPI) -> None:
         404,
         "User wasn't found",
     )
+
+    add_exception_handler(InvalidOAuthState, 403, "Invalid OAuth state")

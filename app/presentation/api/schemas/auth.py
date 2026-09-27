@@ -1,6 +1,11 @@
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr
+
+
+class OAuthProv(StrEnum):
+    GOOGLE = "google"
 
 
 class RegisterUserRequest(BaseModel):
@@ -27,5 +32,24 @@ class RefreshTokenRequest(BaseModel):
 
 
 class RefreshTokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+
+
+class InitiateOAuthRequest(BaseModel):
+    provider: OAuthProv
+
+
+class InitiateOAuthResponse(BaseModel):
+    state: str
+    callback_url: str
+
+
+class AuthenticateOAuthRequest(BaseModel):
+    state: str
+    code: str
+
+
+class AuthenticateOAuthResponse(BaseModel):
     access_token: str
     refresh_token: str
