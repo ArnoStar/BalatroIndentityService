@@ -15,9 +15,11 @@ from app.application.ports.repo.user_repo import UserRepo
 from app.application.ports.token_issuer import TokenIssuer
 from app.application.use_cases.authenticate_oauth import AuthenticateOAuth
 from app.application.use_cases.authenticate_user import AuthenticateUser
+from app.application.use_cases.check_token import CheckUserToken
 from app.application.use_cases.initiate_oauth import InitiateOAuth
 from app.application.use_cases.refresh_token import RefreshUserToken
 from app.application.use_cases.register_user import RegisterUser
+from app.application.use_cases.unlink_oauth import UnlinkOAuthAccount
 from app.infrastructure.bcrypt import BcryptPasswordHasher
 from app.infrastructure.config.settings import settings
 from app.infrastructure.httpx.oauth_account_issuer import HttpxOAuthAccountIssuer
@@ -47,6 +49,7 @@ class Container:
 class RequestContainer:
     def __init__(self, session: AsyncSession, httpx_client: AsyncClient) -> None:
         self.session = session
+        self.httpx_client = httpx_client
 
         # Repositories
 
@@ -78,7 +81,7 @@ class RequestContainer:
         self.oauth_url_manager: OAuthUrlManager = UrlManager()
 
         self.oauth_account_issuer: OAuthAccountIssuer = HttpxOAuthAccountIssuer(
-            httpx_client
+            self.httpx_client
         )
 
         # Use cases
@@ -100,6 +103,10 @@ class RequestContainer:
             token_issuer=self.token_issuer
         )
 
+        self.check_user_token: CheckUserToken = CheckUserToken(
+            token_issuer=self.token_issuer
+        )
+
         self.initiate_oauth: InitiateOAuth = InitiateOAuth(
             oauth_state_manager=self.oauth_state_manager,
             oauth_url_manager=self.oauth_url_manager,
@@ -111,4 +118,8 @@ class RequestContainer:
             oauth_account_repo=self.oauth_account_repo,
             user_repo=self.user_repo,
             token_issuer=self.token_issuer,
+        )
+
+        self.unlink_oauth: UnlinkOAuthAccount = UnlinkOAuthAccount(
+            self.oauth_account_repo
         )

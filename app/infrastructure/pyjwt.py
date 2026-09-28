@@ -53,6 +53,18 @@ class PyJwtTokenIssuer(TokenIssuer):
 
         return self.issue(user_id)
 
+    def check(self, token: AccessToken) -> UUID:
+        payload = jwt.decode(
+            token.value,
+            self.secret_key,
+            algorithms=[self.algorithm],
+        )
+
+        if payload.get("type") != "access":
+            raise ValueError("Invalid token type")
+
+        return UUID(payload["sub"])
+
     def _create_token(
         self,
         user_id: UUID,

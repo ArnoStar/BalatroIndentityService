@@ -45,11 +45,10 @@ class InitiateOAuthResponse(BaseModel):
     callback_url: str
 
 
-class AuthenticateOAuthRequest(BaseModel):
-    state: str
-    code: str
-
-
 class AuthenticateOAuthResponse(BaseModel):
     access_token: str
     refresh_token: str
+
+
+class UnlinkOAuthRequest(BaseModel):
+    provider: OAuthProv

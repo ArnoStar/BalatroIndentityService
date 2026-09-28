@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.application.exceptions.auth import InvalidEmailOrPassword, InvalidOAuthState
 from app.application.exceptions.deps import BelFlixException
+from app.application.exceptions.oauth import OAuthAccountDoesntExist
 from app.application.exceptions.password_credential import (
     PasswordCredentialAlreadyExist,
     PasswordCredentialDoesntExist,
@@ -62,3 +63,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     )
 
     add_exception_handler(InvalidOAuthState, 403, "Invalid OAuth state")
+
+    add_exception_handler(
+        OAuthAccountDoesntExist, 404, "This oauth account wasn't found"
+    )

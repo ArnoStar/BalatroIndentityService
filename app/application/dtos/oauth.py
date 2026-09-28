@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from app.domain.entities.token_pair import TokenPair
 from app.domain.value_object.email import Email
@@ -33,3 +34,9 @@ class AuthenticateOAuthInput:
 @dataclass(frozen=True)
 class AuthenticateOAuthOutput:
     token_pair: TokenPair
+
+
+@dataclass(frozen=True)
+class UnlinkOAuthAccountInput:
+    user_id: UUID
+    provider: OAuthProvider

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +38,58 @@ class SqlalchemyOAuthAccountRepo(OAuthAccountRepo):
             return None
 
         return self._to_entity(model)
+
+    async def get_by_user_id(
+        self,
+        provider: OAuthProvider,
+        user_id: UUID,
+    ) -> OAuthAccount | None:
+        statement = select(OAuthAccountModel).where(
+            OAuthAccountModel.provider == provider.value,
+            OAuthAccountModel.user_id == user_id,
+        )
+
+        result = await self.session.execute(statement)
+        model = result.scalar_one_or_none()
+
+        if model is None:
+            return None
+
+        return self._to_entity(model)
+
+    async def get_providers(
+        self,
+        user_id: UUID,
+    ) -> set[OAuthProvider]:
+        statement = select(OAuthAccountModel.provider).where(
+            OAuthAccountModel.user_id == user_id,
+        )
+
+        result = await self.session.execute(statement)
+
+        return {OAuthProvider(provider) for provider in result.scalars()}
+
+    async def delete_by_user_id(
+        self,
+        provider: OAuthProvider,
+        user_id: UUID,
+    ) -> OAuthAccount | None:
+        statement = select(OAuthAccountModel).where(
+            OAuthAccountModel.provider == provider.value,
+            OAuthAccountModel.user_id == user_id,
+        )
+
+        result = await self.session.execute(statement)
+        model = result.scalar_one_or_none()
+
+        if model is None:
+            return None
+
+        account = self._to_entity(model)
+
+        await self.session.delete(model)
+
+        return account
 
     @staticmethod
     def _to_model(

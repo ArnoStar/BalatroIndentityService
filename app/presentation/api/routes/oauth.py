@@ -1,19 +1,23 @@
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, status
 
 from app.application.dtos.oauth import (
     AuthenticateOAuthInput,
     AuthenticateOAuthOutput,
     InitiateOAuthInput,
     InitiateOAuthOutput,
+    UnlinkOAuthAccountInput,
 )
 from app.bootstrap.container import RequestContainer
 from app.domain.value_object.oauth_provider import OAuthProvider
-from app.presentation.api.dependencies import get_container
+from app.presentation.api.dependencies import get_container, get_current_user_id
 from app.presentation.api.schemas.auth import (
     AuthenticateOAuthResponse,
     InitiateOAuthRequest,
     InitiateOAuthResponse,
     OAuthProv,
+    UnlinkOAuthRequest,
 )
 
 router = APIRouter(prefix="/oauth", tags=["OAuth"])
@@ -54,3 +58,16 @@ async def callback(
         access_token=tokens.token_pair.access_token.value,
         refresh_token=tokens.token_pair.refresh_token.value,
     )
+
+
+@router.put("/{provider}/unlink", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink(
+    request: UnlinkOAuthRequest,
+    current_user_id: UUID = Depends(get_current_user_id),
+    container: RequestContainer = Depends(get_container),
+):
+    dto: UnlinkOAuthAccountInput = UnlinkOAuthAccountInput(
+        user_id=current_user_id, provider=OAuthProvider(request.provider.value)
+    )
+
+    await container.unlink_oauth.execute(dto)
