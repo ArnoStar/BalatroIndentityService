@@ -7,3 +7,11 @@ class InvalidEmailOrPassword(BelFlixException):
 
 class InvalidOAuthState(BelFlixException):
     pass
+
+
+class EmailNotVerified(BelFlixException):
+    pass
+
+
+class NoEmailWithThisCode(BelFlixException):
+    pass

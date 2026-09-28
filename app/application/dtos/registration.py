@@ -13,3 +13,9 @@ class RegisterUserInput:
 @dataclass(frozen=True)
 class RegisterUserOutput:
     user_id: UUID
+
+
+@dataclass(frozen=True)
+class ConfirmEmailInput:
+    email: Email
+    code: str

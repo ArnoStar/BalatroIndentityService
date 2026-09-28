@@ -9,7 +9,11 @@ from app.application.dtos.authentication import (
     RefreshTokenInput,
     RefreshTokenOutput,
 )
-from app.application.dtos.registration import RegisterUserInput, RegisterUserOutput
+from app.application.dtos.registration import (
+    ConfirmEmailInput,
+    RegisterUserInput,
+    RegisterUserOutput,
+)
 from app.bootstrap.container import RequestContainer
 from app.domain.value_object.email import Email
 from app.domain.value_object.tokens import RefreshToken
@@ -17,6 +21,7 @@ from app.presentation.api.dependencies import get_container, get_current_user_id
 from app.presentation.api.schemas.auth import (
     AuthenticateUserRequest,
     AuthenticateUserResponse,
+    ConfirmEmailRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
     RegisterUserRequest,
@@ -72,6 +77,18 @@ def refresh_token(
         access_token=tokens.token_pair.access_token.value,
         refresh_token=tokens.token_pair.refresh_token.value,
     )
+
+
+@router.put("/confirm-email", status_code=status.HTTP_200_OK)
+async def confirm_email(
+    request: ConfirmEmailRequest,
+    container: RequestContainer = Depends(get_container),
+):
+    dto: ConfirmEmailInput = ConfirmEmailInput(
+        email=Email(request.email), code=request.code
+    )
+
+    await container.confirm_email.execute(dto)
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)

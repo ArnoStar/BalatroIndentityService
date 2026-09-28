@@ -12,6 +12,8 @@ class _Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
 
+    rabbitmq_uri: str = "amqp://guest:guest@localhost/"
+
     jwt_secret: str = "secret"
     jwt_algorithm: str = "HS256"
     access_jwt_lifetime_minutes: int = 15
