@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.repo.user_repo import UserRepo
@@ -39,6 +40,19 @@ class SqlalchemyUserRepo(UserRepo):
             return None
 
         return self._to_entity(model)
+
+    async def verify_email(
+        self,
+        user_id: UUID,
+        verified_at: datetime,
+    ) -> None:
+        statement = (
+            update(UserModel)
+            .where(UserModel.id == user_id)
+            .values(email_verified_at=verified_at)
+        )
+
+        await self.session.execute(statement)
 
     async def delete_by_id(self, id: UUID) -> None:
         statement = delete(UserModel).where(UserModel.id == id)

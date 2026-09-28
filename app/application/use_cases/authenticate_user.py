@@ -2,7 +2,7 @@ from app.application.dtos.authentication import (
     AuthUserInput,
     AuthUserOutput,
 )
-from app.application.exceptions.auth import InvalidEmailOrPassword
+from app.application.exceptions.auth import EmailNotVerified, InvalidEmailOrPassword
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
@@ -47,6 +47,9 @@ class AuthenticateUser:
 
         if not password_valid:
             raise InvalidEmailOrPassword
+
+        if user.email_verified_at is None:
+            raise EmailNotVerified
 
         token_pair = self.token_issuer.issue(user.id)
 

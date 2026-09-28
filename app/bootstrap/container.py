@@ -1,8 +1,11 @@
 from datetime import timedelta
 
+from aio_pika.abc import AbstractChannel
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.ports.confirmation_code_issuer import ConfirmationCodeIssuer
+from app.application.ports.email_sender import EmailSender
 from app.application.ports.oauth.oauth_account_issuer import OAuthAccountIssuer
 from app.application.ports.oauth.oauth_state_manager import OAuthStateManager
 from app.application.ports.oauth.oauth_url_manager import OAuthUrlManager
@@ -16,6 +19,7 @@ from app.application.ports.token_issuer import TokenIssuer
 from app.application.use_cases.authenticate_oauth import AuthenticateOAuth
 from app.application.use_cases.authenticate_user import AuthenticateUser
 from app.application.use_cases.check_token import CheckUserToken
+from app.application.use_cases.confirm_email import ConfirmEmail
 from app.application.use_cases.delete_user import DeleteUser
 from app.application.use_cases.initiate_oauth import InitiateOAuth
 from app.application.use_cases.refresh_token import RefreshUserToken
@@ -25,6 +29,10 @@ from app.infrastructure.bcrypt import BcryptPasswordHasher
 from app.infrastructure.config.settings import settings
 from app.infrastructure.httpx.oauth_account_issuer import HttpxOAuthAccountIssuer
 from app.infrastructure.pyjwt import PyJwtTokenIssuer
+from app.infrastructure.rabbitmq.email_send import RabbitMqEmailSender
+from app.infrastructure.redis.confirmation_code_issuer import (
+    RedisConfirmationCodeIssuer,
+)
 from app.infrastructure.redis.oauth_state_manager import RedisOAuthStateManager
 from app.infrastructure.sqlalchemy.repo.oauth_account_repo import (
     SqlalchemyOAuthAccountRepo,
@@ -43,14 +51,21 @@ class Container:
         self,
         session: AsyncSession,
         httpx_client: AsyncClient,
+        rabbitmq_chanel: AbstractChannel,
     ) -> "RequestContainer":
-        return RequestContainer(session, httpx_client)
+        return RequestContainer(session, httpx_client, rabbitmq_chanel)
 
 
 class RequestContainer:
-    def __init__(self, session: AsyncSession, httpx_client: AsyncClient) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        httpx_client: AsyncClient,
+        rabbitmq_chanel: AbstractChannel,
+    ) -> None:
         self.session = session
         self.httpx_client = httpx_client
+        self.rabbitmq_chanel = rabbitmq_chanel
 
         # Repositories
 
@@ -85,12 +100,25 @@ class RequestContainer:
             self.httpx_client
         )
 
+        self.confirmation_code_issuer: ConfirmationCodeIssuer = (
+            RedisConfirmationCodeIssuer()
+        )
+
+        self.email_sender: EmailSender = RabbitMqEmailSender(self.rabbitmq_chanel)
+
         # Use cases
 
         self.register_user: RegisterUser = RegisterUser(
             user_repo=self.user_repo,
             password_credential_repo=self.password_credential_repo,
             password_hasher=self.password_hasher,
+            confirmation_code_issuer=self.confirmation_code_issuer,
+            email_sender=self.email_sender,
+        )
+
+        self.confirm_email: ConfirmEmail = ConfirmEmail(
+            confirmation_code_issuer=self.confirmation_code_issuer,
+            user_repo=self.user_repo,
         )
 
         self.authenticate_user: AuthenticateUser = AuthenticateUser(
@@ -122,7 +150,7 @@ class RequestContainer:
         )
 
         self.unlink_oauth: UnlinkOAuthAccount = UnlinkOAuthAccount(
-            self.oauth_account_repo
+            oauth_account_repo=self.oauth_account_repo
         )
 
-        self.delete_user: DeleteUser = DeleteUser(self.user_repo)
+        self.delete_user: DeleteUser = DeleteUser(user_repo=self.user_repo)

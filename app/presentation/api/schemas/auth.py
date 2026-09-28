@@ -36,6 +36,11 @@ class RefreshTokenResponse(BaseModel):
     refresh_token: str
 
 
+class ConfirmEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+
 class InitiateOAuthRequest(BaseModel):
     provider: OAuthProv
 

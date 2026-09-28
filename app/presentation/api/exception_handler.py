@@ -3,7 +3,12 @@ from typing import TypeVar
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.application.exceptions.auth import InvalidEmailOrPassword, InvalidOAuthState
+from app.application.exceptions.auth import (
+    EmailNotVerified,
+    InvalidEmailOrPassword,
+    InvalidOAuthState,
+    NoEmailWithThisCode,
+)
 from app.application.exceptions.deps import BelFlixException
 from app.application.exceptions.oauth import OAuthAccountDoesntExist
 from app.application.exceptions.password_credential import (
@@ -38,6 +43,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         "Invalid email or password",
     )
 
+    add_exception_handler(EmailNotVerified, 403, "You need to verify your email")
+
     add_exception_handler(
         PasswordCredentialAlreadyExist,
         409,
@@ -66,4 +73,8 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     add_exception_handler(
         OAuthAccountDoesntExist, 404, "This oauth account wasn't found"
+    )
+
+    add_exception_handler(
+        NoEmailWithThisCode, 403, "No email with this confirmation code"
     )
