@@ -35,3 +35,8 @@ class CheckTokenInput:
 @dataclass(frozen=True)
 class CheckTokenOutput:
     user_id: UUID
+
+
+@dataclass(frozen=True)
+class DeleteUserInput:
+    user_id: UUID
