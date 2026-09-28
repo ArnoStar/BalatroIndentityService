@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, status
 
 from app.application.dtos.authentication import (
     AuthUserInput,
     AuthUserOutput,
+    DeleteUserInput,
     RefreshTokenInput,
     RefreshTokenOutput,
 )
@@ -10,7 +13,7 @@ from app.application.dtos.registration import RegisterUserInput, RegisterUserOut
 from app.bootstrap.container import RequestContainer
 from app.domain.value_object.email import Email
 from app.domain.value_object.tokens import RefreshToken
-from app.presentation.api.dependencies import get_container
+from app.presentation.api.dependencies import get_container, get_current_user_id
 from app.presentation.api.schemas.auth import (
     AuthenticateUserRequest,
     AuthenticateUserResponse,
@@ -69,3 +72,13 @@ def refresh_token(
         access_token=tokens.token_pair.access_token.value,
         refresh_token=tokens.token_pair.refresh_token.value,
     )
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_user(
+    current_user_id: UUID = Depends(get_current_user_id),
+    container: RequestContainer = Depends(get_container),
+):
+    dto: DeleteUserInput = DeleteUserInput(user_id=current_user_id)
+
+    await container.delete_user.execute(dto)

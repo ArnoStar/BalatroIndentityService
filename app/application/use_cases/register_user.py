@@ -66,8 +66,6 @@ class RegisterUser:
 """
 application/
 └── use_cases/
-    ├── unlink_oauth_account.py
-    ├── delete_user.py
     ├── change_password.py       =
     ├── verify_email.py          =
 """

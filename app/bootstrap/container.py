@@ -16,6 +16,7 @@ from app.application.ports.token_issuer import TokenIssuer
 from app.application.use_cases.authenticate_oauth import AuthenticateOAuth
 from app.application.use_cases.authenticate_user import AuthenticateUser
 from app.application.use_cases.check_token import CheckUserToken
+from app.application.use_cases.delete_user import DeleteUser
 from app.application.use_cases.initiate_oauth import InitiateOAuth
 from app.application.use_cases.refresh_token import RefreshUserToken
 from app.application.use_cases.register_user import RegisterUser
@@ -123,3 +124,5 @@ class RequestContainer:
         self.unlink_oauth: UnlinkOAuthAccount = UnlinkOAuthAccount(
             self.oauth_account_repo
         )
+
+        self.delete_user: DeleteUser = DeleteUser(self.user_repo)
