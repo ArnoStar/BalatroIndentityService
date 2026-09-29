@@ -18,9 +18,11 @@ from app.application.ports.repo.user_repo import UserRepo
 from app.application.ports.token_issuer import TokenIssuer
 from app.application.use_cases.authenticate_oauth import AuthenticateOAuth
 from app.application.use_cases.authenticate_user import AuthenticateUser
+from app.application.use_cases.change_password import ChangePassword
 from app.application.use_cases.check_token import CheckUserToken
 from app.application.use_cases.confirm_email import ConfirmEmail
 from app.application.use_cases.delete_user import DeleteUser
+from app.application.use_cases.initiate_change_password import InitiateChangePassword
 from app.application.use_cases.initiate_oauth import InitiateOAuth
 from app.application.use_cases.refresh_token import RefreshUserToken
 from app.application.use_cases.register_user import RegisterUser
@@ -146,6 +148,7 @@ class RequestContainer:
             oauth_state_manager=self.oauth_state_manager,
             oauth_account_repo=self.oauth_account_repo,
             user_repo=self.user_repo,
+            password_credential_repo=self.password_credential_repo,
             token_issuer=self.token_issuer,
         )
 
@@ -154,3 +157,15 @@ class RequestContainer:
         )
 
         self.delete_user: DeleteUser = DeleteUser(user_repo=self.user_repo)
+
+        self.initiate_change_password: InitiateChangePassword = InitiateChangePassword(
+            confirmation_code_issuer=self.confirmation_code_issuer,
+            email_sender=self.email_sender,
+        )
+
+        self.change_password: ChangePassword = ChangePassword(
+            confirmation_code_issuer=self.confirmation_code_issuer,
+            password_hasher=self.password_hasher,
+            user_repo=self.user_repo,
+            password_credential_repo=self.password_credential_repo,
+        )

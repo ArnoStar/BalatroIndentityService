@@ -3,6 +3,7 @@ from uuid import UUID
 
 import jwt
 
+from app.application.exceptions.token import InvalidToken, WrongTokenType
 from app.application.ports.token_issuer import TokenIssuer
 from app.domain.entities.token_pair import TokenPair
 from app.domain.value_object.tokens import AccessToken, RefreshToken
@@ -40,28 +41,34 @@ class PyJwtTokenIssuer(TokenIssuer):
         )
 
     def refresh(self, refresh_token: RefreshToken) -> TokenPair:
-        payload = jwt.decode(
-            refresh_token.value,
-            self.secret_key,
-            algorithms=[self.algorithm],
-        )
+        try:
+            payload = jwt.decode(
+                refresh_token.value,
+                self.secret_key,
+                algorithms=[self.algorithm],
+            )
+        except jwt.InvalidTokenError as exc:
+            raise InvalidToken from exc
 
         if payload.get("type") != "refresh":
-            raise ValueError("Invalid token type")
+            raise WrongTokenType
 
         user_id = UUID(payload["sub"])
 
         return self.issue(user_id)
 
     def check(self, token: AccessToken) -> UUID:
-        payload = jwt.decode(
-            token.value,
-            self.secret_key,
-            algorithms=[self.algorithm],
-        )
+        try:
+            payload = jwt.decode(
+                token.value,
+                self.secret_key,
+                algorithms=[self.algorithm],
+            )
+        except jwt.InvalidTokenError as exc:
+            raise InvalidToken from exc
 
         if payload.get("type") != "access":
-            raise ValueError("Invalid token type")
+            raise WrongTokenType
 
         return UUID(payload["sub"])
 

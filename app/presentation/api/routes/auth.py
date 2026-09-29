@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, status
 from app.application.dtos.authentication import (
     AuthUserInput,
     AuthUserOutput,
+    ChangePasswordInput,
     DeleteUserInput,
+    InitiateChangePasswordInput,
     RefreshTokenInput,
     RefreshTokenOutput,
 )
@@ -21,7 +23,9 @@ from app.presentation.api.dependencies import get_container, get_current_user_id
 from app.presentation.api.schemas.auth import (
     AuthenticateUserRequest,
     AuthenticateUserResponse,
+    ChangePasswordRequest,
     ConfirmEmailRequest,
+    InitiateChangePasswordRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
     RegisterUserRequest,
@@ -99,3 +103,29 @@ async def delete_current_user(
     dto: DeleteUserInput = DeleteUserInput(user_id=current_user_id)
 
     await container.delete_user.execute(dto)
+
+
+@router.post("/init-change-password", status_code=status.HTTP_200_OK)
+async def init_change_password(
+    request: InitiateChangePasswordRequest,
+    container: RequestContainer = Depends(get_container),
+):
+    dto: InitiateChangePasswordInput = InitiateChangePasswordInput(
+        email=Email(request.email)
+    )
+
+    await container.initiate_change_password.execute(dto)
+
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    request: ChangePasswordRequest,
+    container: RequestContainer = Depends(get_container),
+):
+    dto: ChangePasswordInput = ChangePasswordInput(
+        Email(request.email),
+        request.code,
+        request.password,
+    )
+
+    await container.change_password.execute(dto)
