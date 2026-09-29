@@ -15,6 +15,7 @@ from app.application.exceptions.password_credential import (
     PasswordCredentialAlreadyExist,
     PasswordCredentialDoesntExist,
 )
+from app.application.exceptions.token import InvalidToken, WrongTokenType
 from app.application.exceptions.user import UserAlreadyExist, UserDoesntExist
 
 ExceptionT = TypeVar("ExceptionT", bound=BelFlixException)
@@ -78,3 +79,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     add_exception_handler(
         NoEmailWithThisCode, 403, "No email with this confirmation code"
     )
+
+    add_exception_handler(InvalidToken, 401, "Your token is invalid or has expired")
+
+    add_exception_handler(WrongTokenType, 401, "Wrong token type")

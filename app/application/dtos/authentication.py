@@ -40,3 +40,15 @@ class CheckTokenOutput:
 @dataclass(frozen=True)
 class DeleteUserInput:
     user_id: UUID
+
+
+@dataclass(frozen=True)
+class InitiateChangePasswordInput:
+    email: Email
+
+
+@dataclass(frozen=True)
+class ChangePasswordInput:
+    email: Email
+    code: str
+    password: str

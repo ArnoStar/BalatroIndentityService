@@ -9,6 +9,7 @@ from app.application.exceptions.auth import InvalidOAuthState
 from app.application.ports.oauth.oauth_account_issuer import OAuthAccountIssuer
 from app.application.ports.oauth.oauth_state_manager import OAuthStateManager
 from app.application.ports.repo.oauth_account_repo import OAuthAccountRepo
+from app.application.ports.repo.password_credential_repo import PasswordCredentialRepo
 from app.application.ports.repo.user_repo import UserRepo
 from app.application.ports.token_issuer import TokenIssuer
 from app.domain.entities.oauth_account import OAuthAccount
@@ -22,12 +23,14 @@ class AuthenticateOAuth:
         oauth_state_manager: OAuthStateManager,
         oauth_account_repo: OAuthAccountRepo,
         user_repo: UserRepo,
+        password_credential_repo: PasswordCredentialRepo,
         token_issuer: TokenIssuer,
     ) -> None:
         self.oauth_account_issuer = oauth_account_issuer
         self.oauth_state_manager = oauth_state_manager
         self.oauth_account_repo = oauth_account_repo
         self.user_repo = user_repo
+        self.password_credential_repo = password_credential_repo
         self.token_issuer = token_issuer
 
     async def execute(
@@ -73,6 +76,10 @@ class AuthenticateOAuth:
             )
 
             await self.user_repo.create(user)
+        elif user.email_verified_at is None:
+            await self.password_credential_repo.delete_by_id(user.id)
+
+            await self.user_repo.verify_email(user.id, now)
 
         oauth_account = OAuthAccount(
             id=uuid4(),

@@ -78,11 +78,3 @@ class RegisterUser:
         output: RegisterUserOutput = RegisterUserOutput(user_id=user.id)
 
         return output
-
-
-"""
-application/
-└── use_cases/
-    ├── change_password.py       =
-    ├── verify_email.py          =
-"""

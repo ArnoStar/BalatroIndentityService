@@ -57,3 +57,13 @@ class AuthenticateOAuthResponse(BaseModel):
 
 class UnlinkOAuthRequest(BaseModel):
     provider: OAuthProv
+
+
+class InitiateChangePasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ChangePasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    password: str

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.repo.password_credential_repo import (
@@ -40,6 +40,29 @@ class SqlalchemyPasswordCredentialRepo(PasswordCredentialRepo):
             return None
 
         return self._to_entity(model)
+
+    async def change_password(
+        self,
+        user_id: UUID,
+        password_hash: str,
+    ) -> None:
+        statement = (
+            update(PasswordCredentialModel)
+            .where(PasswordCredentialModel.user_id == user_id)
+            .values(password_hash=password_hash)
+        )
+
+        await self.session.execute(statement)
+
+    async def delete_by_id(
+        self,
+        user_id: UUID,
+    ) -> None:
+        statement = delete(PasswordCredentialModel).where(
+            PasswordCredentialModel.user_id == user_id,
+        )
+
+        await self.session.execute(statement)
 
     @staticmethod
     def _to_model(
