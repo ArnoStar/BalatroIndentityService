@@ -29,3 +29,9 @@ check:
 	uv run ruff check .
 	uv run mypy .
 	uv run pytest
+
+compose:
+	docker compose up -d --build
+
+decompose:
+	docker compose down --volumes
