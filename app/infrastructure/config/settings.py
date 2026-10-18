@@ -7,6 +7,8 @@ class _Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
+    allowed_origines: list[str] = ["http://localhost:5173"]
+
     sql_database_url: str = "postgresql+asyncpg://postgres:your_secure_password@localhost:5432/indentityservice"
 
     redis_host: str = "localhost"
