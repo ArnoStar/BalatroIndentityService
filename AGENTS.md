@@ -9,6 +9,10 @@ The identity service of Balatro in the browser: accounts, sign-in (email and
 password, Google), and the tokens that the other services trust. Those are
 BalatroWebAPI now, and later the leaderboards and lobbies. Its front end is
 BalatroPortal, and the game (BalatroFrontEnd) shares the portal's session.
+Its emails are sent by BalatroNotificationService: the codes go there as
+`email.confirmation_code` messages (RabbitMQ). That message is a contract
+documented in that repository's `docs/messages.md`; change both sides
+together.
 
 The repository's name has a typo ("Indentity"). It is the GitHub repository's
 name and the folder name used on the server and by the deployment scripts, so

@@ -3,7 +3,11 @@ import secrets
 from redis.asyncio import Redis
 
 from app.application.exceptions.auth import TooManyAttempts
-from app.application.ports.confirmation_codes import CodePurpose, ConfirmationCodes
+from app.application.ports.confirmation_codes import (
+    CODE_LIFETIME_MINUTES,
+    CodePurpose,
+    ConfirmationCodes,
+)
 from app.domain.value_object.email import Email
 from app.infrastructure.redis.redis import text
 
@@ -12,7 +16,7 @@ class RedisConfirmationCodes(ConfirmationCodes):
     """Six-digit codes, valid for 10 minutes and 5 guesses, at most one sent
     a minute per address and purpose."""
 
-    TTL = 600
+    TTL = CODE_LIFETIME_MINUTES * 60
     MAX_ATTEMPTS = 5
     COOLDOWN = 60
 

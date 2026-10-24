@@ -5,8 +5,8 @@ import ssl
 from email.message import EmailMessage
 
 from app.application.exceptions.email import EmailDeliveryFailed
-from app.application.ports.email_sender import EmailSender
 from app.domain.value_object.email import Email
+from app.infrastructure.email.sender import EmailSender
 
 log = logging.getLogger(__name__)
 

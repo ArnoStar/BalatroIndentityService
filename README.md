@@ -39,6 +39,9 @@ make services         # PostgreSQL (localhost:55432) and Redis (:56379) in Docke
 make run              # migrates, then serves http://localhost:8001 (docs at /docs)
 ```
 
+`make` lists every command. BalatroFrontEnd's `make dev` runs the whole site
+(this service included) from the repositories.
+
 The services come from the game's single compose file,
 `../BalatroFrontEnd/docker-compose.yml`. It runs the whole site (portal, game,
 API, this service, and its PostgreSQL and Redis), and optionally Mailpit and
@@ -68,7 +71,8 @@ Settings are environment variables, or lines of a `.env` file.
 | `JWT_PRIVATE_KEY` / `JWT_PRIVATE_KEY_FILE` | `keys/jwt_private.pem` | the RS256 key, as PEM text or a file (created if missing while `JWT_GENERATE_KEY=true`) |
 | `JWT_AUDIENCE` | `balatro` | the tokens' `aud` |
 | `ACCESS_TOKEN_LIFETIME_MINUTES` / `REFRESH_TOKEN_LIFETIME_DAYS` | 15 / 30 | |
-| `EMAIL_BACKEND` | `console` | `console`, `smtp` (with `SMTP_*`) or `rabbitmq` (for a separate mail worker) |
+| `EMAIL_BACKEND` | `console` | `notifications` (hand the codes to the notification service), or send them from here: `console` or `smtp` (with `SMTP_*`) |
+| `RABBITMQ_URL` | `amqp://balatro:balatro@localhost:5672/` | with `notifications`: the compose file's RabbitMQ |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | unset | Google sign-in is on when both are set |
 | `OAUTH_REDIRECT_URIS` | the portal's dev URLs | the pages Google may send the browser back to (the portal's `/auth/callback`) |
 
@@ -109,13 +113,24 @@ any Google account to the signed-in player.
 
 ### Email
 
-- `smtp`: set `SMTP_HOST`, `SMTP_PORT` and `SMTP_SECURITY` (`starttls` on 587,
-  `ssl` on 465, or `none`), `SMTP_USERNAME`, `SMTP_PASSWORD` and `EMAIL_FROM`.
-- `rabbitmq`: publishes `{"email", "subject", "body"}` to the `notifications`
-  exchange with routing key `email.send`, bound to the `email_worker_queue`
-  queue. Something else must deliver the messages. The compose file's
-  `rabbitmq` service (`--profile rabbitmq`) provides the broker; the identity
-  container is already pointed at it.
+The codes (confirming an email, resetting a password) reach players in one
+of two ways:
+
+- `notifications`, used by the Docker stack and `make dev`: the code goes to
+  **BalatroNotificationService** as an `email.confirmation_code` message on
+  RabbitMQ (`app/infrastructure/notifications/rabbitmq.py`; the contract is in
+  that service's `docs/messages.md`). That service writes the email (text and
+  HTML), sends it, and retries while the mail server is down. The publish uses
+  publisher confirms and `mandatory`: if the notification service never
+  declared its queue, the publish is refused, and the player gets 503
+  `email_delivery_failed` and asks for another code.
+- `console` or `smtp`: this service sends a plain text email itself, for when
+  it runs alone. For `smtp`, set `SMTP_HOST`, `SMTP_PORT` and `SMTP_SECURITY`
+  (`starttls` on 587, `ssl` on 465, or `none`), `SMTP_USERNAME`,
+  `SMTP_PASSWORD` and `EMAIL_FROM`.
+
+The `CodeSender` port (`app/application/ports/code_sender.py`) is what the use
+cases see; the two ways are its adapters.
 
 ## Checks
 
@@ -151,6 +166,8 @@ deployments keep:
 ```
 PUBLIC_URL=https://example.com
 IDENTITY_DB_PASSWORD=<a long random password>
+RABBITMQ_PASSWORD=<another one>
+# (the notification service sends the emails: these are its settings)
 EMAIL_BACKEND=smtp
 SMTP_HOST=smtp.example.com
 SMTP_USERNAME=...
@@ -171,6 +188,7 @@ The first version (BelFlix's) had problems that made it unusable or unsafe:
 - The migration was empty, so the tables existed only through `create_all`.
 - The database commit ran after the response was sent.
 - Nothing read the RabbitMQ email queue, so no account could be confirmed.
+  BalatroNotificationService now does that job.
 - Refresh tokens could be replayed and never revoked.
 - Confirmation codes could be brute-forced.
 - Passwords over 72 bytes caused a 500.

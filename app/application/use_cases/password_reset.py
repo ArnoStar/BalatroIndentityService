@@ -5,8 +5,8 @@ from app.application.dtos.authentication import (
     ResetPasswordInput,
 )
 from app.application.exceptions.auth import InvalidConfirmationCode
+from app.application.ports.code_sender import CodeSender
 from app.application.ports.confirmation_codes import CodePurpose, ConfirmationCodes
-from app.application.ports.email_sender import EmailSender
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
@@ -26,11 +26,11 @@ class RequestPasswordReset:
         self,
         user_repo: UserRepo,
         confirmation_codes: ConfirmationCodes,
-        email_sender: EmailSender,
+        code_sender: CodeSender,
     ) -> None:
         self.user_repo = user_repo
         self.confirmation_codes = confirmation_codes
-        self.email_sender = email_sender
+        self.code_sender = code_sender
 
     async def execute(self, dto: RequestPasswordResetInput) -> None:
         user = await self.user_repo.get_by_email(dto.email)
@@ -40,7 +40,7 @@ class RequestPasswordReset:
 
         await send_code(
             self.confirmation_codes,
-            self.email_sender,
+            self.code_sender,
             CodePurpose.RESET_PASSWORD,
             user.email,
         )

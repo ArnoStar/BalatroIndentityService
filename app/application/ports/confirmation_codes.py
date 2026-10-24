@@ -3,6 +3,9 @@ from typing import Protocol
 
 from app.domain.value_object.email import Email
 
+# how long a code works (the stores expire it then; the emails say it)
+CODE_LIFETIME_MINUTES = 10
+
 
 class CodePurpose(StrEnum):
     VERIFY_EMAIL = "verify_email"
