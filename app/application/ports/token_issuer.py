@@ -1,11 +1,12 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.entities.token_pair import TokenPair
-from app.domain.value_object.tokens import AccessToken, RefreshToken
+from app.application.dtos.tokens import AccessToken
+from app.domain.entities.user import User
 
 
-class TokenIssuer(Protocol):
-    def issue(self, user_id: UUID) -> TokenPair: ...
-    def refresh(self, token_pair: RefreshToken) -> TokenPair: ...
-    def check(self, token: AccessToken) -> UUID: ...
+class AccessTokenIssuer(Protocol):
+    def issue(self, user: User) -> AccessToken: ...
+    def verify(self, token: str) -> UUID:
+        """The token's user. Raises InvalidToken."""
+        ...

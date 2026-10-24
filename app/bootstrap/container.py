@@ -1,171 +1,219 @@
+"""The composition root: the only place that knows every layer. ``Container``
+holds what lives as long as the process (connections, the signing key);
+``RequestContainer`` builds the use cases of one request on its database
+session."""
+
 from datetime import timedelta
 
-from aio_pika.abc import AbstractChannel
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.ports.confirmation_code_issuer import ConfirmationCodeIssuer
 from app.application.ports.email_sender import EmailSender
-from app.application.ports.oauth.oauth_account_issuer import OAuthAccountIssuer
-from app.application.ports.oauth.oauth_state_manager import OAuthStateManager
-from app.application.ports.oauth.oauth_url_manager import OAuthUrlManager
+from app.application.ports.oauth.oauth_client import OAuthClient
 from app.application.ports.password_hasher import PasswordHasher
-from app.application.ports.repo.oauth_account_repo import OAuthAccountRepo
-from app.application.ports.repo.password_credential_repo import (
-    PasswordCredentialRepo,
-)
-from app.application.ports.repo.user_repo import UserRepo
-from app.application.ports.token_issuer import TokenIssuer
+from app.application.ports.token_issuer import AccessTokenIssuer
 from app.application.use_cases.authenticate_oauth import AuthenticateOAuth
 from app.application.use_cases.authenticate_user import AuthenticateUser
-from app.application.use_cases.change_password import ChangePassword
 from app.application.use_cases.check_token import CheckUserToken
 from app.application.use_cases.confirm_email import ConfirmEmail
 from app.application.use_cases.delete_user import DeleteUser
-from app.application.use_cases.initiate_change_password import InitiateChangePassword
-from app.application.use_cases.initiate_oauth import InitiateOAuth
+from app.application.use_cases.get_account import GetAccount
+from app.application.use_cases.initiate_oauth import InitiateOAuth, ListOAuthProviders
+from app.application.use_cases.logout import Logout, LogoutAll
+from app.application.use_cases.password_reset import (
+    RequestPasswordReset,
+    ResetPassword,
+)
 from app.application.use_cases.refresh_token import RefreshUserToken
 from app.application.use_cases.register_user import RegisterUser
+from app.application.use_cases.resend_confirmation import ResendConfirmation
 from app.application.use_cases.unlink_oauth import UnlinkOAuthAccount
+from app.application.use_cases.update_account import UpdateAccount
 from app.infrastructure.bcrypt import BcryptPasswordHasher
-from app.infrastructure.config.settings import settings
-from app.infrastructure.httpx.oauth_account_issuer import HttpxOAuthAccountIssuer
-from app.infrastructure.pyjwt import PyJwtTokenIssuer
-from app.infrastructure.rabbitmq.email_send import RabbitMqEmailSender
-from app.infrastructure.redis.confirmation_code_issuer import (
-    RedisConfirmationCodeIssuer,
-)
-from app.infrastructure.redis.oauth_state_manager import RedisOAuthStateManager
+from app.infrastructure.config.settings import EmailBackend, Settings
+from app.infrastructure.email.console import ConsoleEmailSender
+from app.infrastructure.email.rabbitmq import RabbitMqEmailSender
+from app.infrastructure.email.smtp import SmtpEmailSender
+from app.infrastructure.jwt.access_tokens import JwtAccessTokenIssuer
+from app.infrastructure.jwt.keys import SigningKey, load_signing_key
+from app.infrastructure.oauth.client import HttpxOAuthClient
+from app.infrastructure.redis.confirmation_codes import RedisConfirmationCodes
+from app.infrastructure.redis.login_attempts import RedisLoginAttempts
+from app.infrastructure.redis.oauth_state_store import RedisOAuthStateStore
+from app.infrastructure.redis.session_store import RedisSessionStore
 from app.infrastructure.sqlalchemy.repo.oauth_account_repo import (
     SqlalchemyOAuthAccountRepo,
 )
 from app.infrastructure.sqlalchemy.repo.password_credential_repo import (
     SqlalchemyPasswordCredentialRepo,
 )
-from app.infrastructure.sqlalchemy.repo.user_repo import (
-    SqlalchemyUserRepo,
-)
-from app.infrastructure.url_manager import UrlManager
+from app.infrastructure.sqlalchemy.repo.user_repo import SqlalchemyUserRepo
+from app.infrastructure.sqlalchemy.sqlalchemy import make_engine, make_sessionmaker
+from app.infrastructure.sqlalchemy.unit_of_work import SqlalchemyUnitOfWork
+
+
+def make_email_sender(settings: Settings) -> EmailSender:
+    match settings.email_backend:
+        case EmailBackend.SMTP:
+            return SmtpEmailSender(
+                host=settings.smtp_host,
+                port=settings.smtp_port,
+                sender=settings.email_from,
+                username=settings.smtp_username,
+                password=settings.smtp_password,
+                security=settings.smtp_security,
+            )
+        case EmailBackend.RABBITMQ:
+            return RabbitMqEmailSender(settings.rabbitmq_url)
+        case _:
+            return ConsoleEmailSender()
 
 
 class Container:
-    def create_request_container(
+    def __init__(
         self,
-        session: AsyncSession,
-        httpx_client: AsyncClient,
-        rabbitmq_chanel: AbstractChannel,
-    ) -> "RequestContainer":
-        return RequestContainer(session, httpx_client, rabbitmq_chanel)
+        settings: Settings,
+        *,
+        engine: AsyncEngine | None = None,
+        redis: Redis | None = None,
+        http: httpx.AsyncClient | None = None,
+        email_sender: EmailSender | None = None,
+        signing_key: SigningKey | None = None,
+        password_hasher: PasswordHasher | None = None,
+    ) -> None:
+        """Every argument after ``settings`` replaces the adapter made from
+        the settings (the tests use this)."""
+        self.settings = settings
+        self.engine = engine or make_engine(settings.database_url)
+        self.sessionmaker: async_sessionmaker[AsyncSession] = make_sessionmaker(
+            self.engine
+        )
+        self.redis: Redis = redis or Redis.from_url(
+            settings.redis_url, decode_responses=True
+        )
+        self.http = http or httpx.AsyncClient(timeout=10)
+        self.email_sender = email_sender or make_email_sender(settings)
+        self.signing_key = signing_key or load_signing_key(
+            settings.jwt_private_key,
+            settings.jwt_private_key_file,
+            settings.jwt_generate_key,
+        )
+        self.password_hasher = password_hasher or BcryptPasswordHasher()
+        self.access_tokens: AccessTokenIssuer = JwtAccessTokenIssuer(
+            self.signing_key,
+            issuer=settings.public_url,
+            audience=settings.jwt_audience,
+            lifetime=timedelta(minutes=settings.access_token_lifetime_minutes),
+        )
+        self.sessions = RedisSessionStore(
+            self.redis, timedelta(days=settings.refresh_token_lifetime_days)
+        )
+        self.confirmation_codes = RedisConfirmationCodes(self.redis)
+        self.login_attempts = RedisLoginAttempts(self.redis)
+        self.oauth_state_store = RedisOAuthStateStore(self.redis)
+        self.oauth_client: OAuthClient = HttpxOAuthClient(
+            self.http, settings.google_client_id, settings.google_client_secret
+        )
+
+        self.check_user_token = CheckUserToken(self.access_tokens)
+        self.list_oauth_providers = ListOAuthProviders(self.oauth_client)
+        self.logout = Logout(self.sessions)
+        self.logout_all = LogoutAll(self.sessions)
+        self.initiate_oauth = InitiateOAuth(
+            self.oauth_client,
+            self.oauth_state_store,
+            settings.oauth_redirect_uris,
+        )
+
+    def request(self, session: AsyncSession) -> "RequestContainer":
+        return RequestContainer(self, session)
+
+    async def close(self) -> None:
+        await self.http.aclose()
+        if isinstance(self.email_sender, RabbitMqEmailSender):
+            await self.email_sender.close()
+        await self.redis.aclose()
+        await self.engine.dispose()
 
 
 class RequestContainer:
-    def __init__(
-        self,
-        session: AsyncSession,
-        httpx_client: AsyncClient,
-        rabbitmq_chanel: AbstractChannel,
-    ) -> None:
-        self.session = session
-        self.httpx_client = httpx_client
-        self.rabbitmq_chanel = rabbitmq_chanel
+    def __init__(self, app: Container, session: AsyncSession) -> None:
+        self.app = app
+        user_repo = SqlalchemyUserRepo(session)
+        password_credential_repo = SqlalchemyPasswordCredentialRepo(session)
+        oauth_account_repo = SqlalchemyOAuthAccountRepo(session)
+        unit_of_work = SqlalchemyUnitOfWork(session)
 
-        # Repositories
-
-        self.user_repo: UserRepo = SqlalchemyUserRepo(
-            session=session,
+        self.register_user = RegisterUser(
+            user_repo=user_repo,
+            password_credential_repo=password_credential_repo,
+            password_hasher=app.password_hasher,
+            unit_of_work=unit_of_work,
+            confirmation_codes=app.confirmation_codes,
+            email_sender=app.email_sender,
         )
-
-        self.password_credential_repo: PasswordCredentialRepo = (
-            SqlalchemyPasswordCredentialRepo(
-                session=session,
-            )
+        self.confirm_email = ConfirmEmail(
+            confirmation_codes=app.confirmation_codes,
+            user_repo=user_repo,
+            unit_of_work=unit_of_work,
         )
-
-        self.oauth_account_repo: OAuthAccountRepo = SqlalchemyOAuthAccountRepo(
-            session=session,
+        self.resend_confirmation = ResendConfirmation(
+            user_repo=user_repo,
+            confirmation_codes=app.confirmation_codes,
+            email_sender=app.email_sender,
         )
-
-        self.password_hasher: PasswordHasher = BcryptPasswordHasher()
-
-        self.token_issuer: TokenIssuer = PyJwtTokenIssuer(
-            settings.jwt_secret,
-            settings.jwt_algorithm,
-            timedelta(minutes=settings.access_jwt_lifetime_minutes),
-            timedelta(days=settings.refresh_jwt_lifetime_days),
+        self.authenticate_user = AuthenticateUser(
+            user_repo=user_repo,
+            password_credential_repo=password_credential_repo,
+            password_hasher=app.password_hasher,
+            login_attempts=app.login_attempts,
+            access_tokens=app.access_tokens,
+            sessions=app.sessions,
         )
-
-        self.oauth_state_manager: OAuthStateManager = RedisOAuthStateManager()
-
-        self.oauth_url_manager: OAuthUrlManager = UrlManager()
-
-        self.oauth_account_issuer: OAuthAccountIssuer = HttpxOAuthAccountIssuer(
-            self.httpx_client
+        self.refresh_user_token = RefreshUserToken(
+            sessions=app.sessions,
+            access_tokens=app.access_tokens,
+            user_repo=user_repo,
         )
-
-        self.confirmation_code_issuer: ConfirmationCodeIssuer = (
-            RedisConfirmationCodeIssuer()
+        self.get_account = GetAccount(
+            user_repo=user_repo,
+            password_credential_repo=password_credential_repo,
+            oauth_account_repo=oauth_account_repo,
         )
-
-        self.email_sender: EmailSender = RabbitMqEmailSender(self.rabbitmq_chanel)
-
-        # Use cases
-
-        self.register_user: RegisterUser = RegisterUser(
-            user_repo=self.user_repo,
-            password_credential_repo=self.password_credential_repo,
-            password_hasher=self.password_hasher,
-            confirmation_code_issuer=self.confirmation_code_issuer,
-            email_sender=self.email_sender,
+        self.update_account = UpdateAccount(
+            user_repo=user_repo, unit_of_work=unit_of_work
         )
-
-        self.confirm_email: ConfirmEmail = ConfirmEmail(
-            confirmation_code_issuer=self.confirmation_code_issuer,
-            user_repo=self.user_repo,
+        self.delete_user = DeleteUser(
+            user_repo=user_repo,
+            unit_of_work=unit_of_work,
+            sessions=app.sessions,
         )
-
-        self.authenticate_user: AuthenticateUser = AuthenticateUser(
-            user_repo=self.user_repo,
-            password_credential_repo=self.password_credential_repo,
-            password_hasher=self.password_hasher,
-            token_issuer=self.token_issuer,
+        self.request_password_reset = RequestPasswordReset(
+            user_repo=user_repo,
+            confirmation_codes=app.confirmation_codes,
+            email_sender=app.email_sender,
         )
-
-        self.refresh_user_token: RefreshUserToken = RefreshUserToken(
-            token_issuer=self.token_issuer
+        self.reset_password = ResetPassword(
+            confirmation_codes=app.confirmation_codes,
+            password_hasher=app.password_hasher,
+            user_repo=user_repo,
+            password_credential_repo=password_credential_repo,
+            unit_of_work=unit_of_work,
+            sessions=app.sessions,
         )
-
-        self.check_user_token: CheckUserToken = CheckUserToken(
-            token_issuer=self.token_issuer
+        self.authenticate_oauth = AuthenticateOAuth(
+            oauth_client=app.oauth_client,
+            oauth_state_store=app.oauth_state_store,
+            oauth_account_repo=oauth_account_repo,
+            user_repo=user_repo,
+            password_credential_repo=password_credential_repo,
+            unit_of_work=unit_of_work,
+            access_tokens=app.access_tokens,
+            sessions=app.sessions,
         )
-
-        self.initiate_oauth: InitiateOAuth = InitiateOAuth(
-            oauth_state_manager=self.oauth_state_manager,
-            oauth_url_manager=self.oauth_url_manager,
-        )
-
-        self.authenticate_oauth: AuthenticateOAuth = AuthenticateOAuth(
-            oauth_account_issuer=self.oauth_account_issuer,
-            oauth_state_manager=self.oauth_state_manager,
-            oauth_account_repo=self.oauth_account_repo,
-            user_repo=self.user_repo,
-            password_credential_repo=self.password_credential_repo,
-            token_issuer=self.token_issuer,
-        )
-
-        self.unlink_oauth: UnlinkOAuthAccount = UnlinkOAuthAccount(
-            oauth_account_repo=self.oauth_account_repo
-        )
-
-        self.delete_user: DeleteUser = DeleteUser(user_repo=self.user_repo)
-
-        self.initiate_change_password: InitiateChangePassword = InitiateChangePassword(
-            confirmation_code_issuer=self.confirmation_code_issuer,
-            email_sender=self.email_sender,
-        )
-
-        self.change_password: ChangePassword = ChangePassword(
-            confirmation_code_issuer=self.confirmation_code_issuer,
-            password_hasher=self.password_hasher,
-            user_repo=self.user_repo,
-            password_credential_repo=self.password_credential_repo,
+        self.unlink_oauth = UnlinkOAuthAccount(
+            oauth_account_repo=oauth_account_repo,
+            password_credential_repo=password_credential_repo,
+            unit_of_work=unit_of_work,
         )

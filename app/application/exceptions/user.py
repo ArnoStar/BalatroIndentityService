@@ -1,9 +1,11 @@
-from app.application.exceptions.deps import BelFlixException
+from app.application.exceptions.base import IdentityError
 
 
-class UserAlreadyExist(BelFlixException):
-    pass
+class UserAlreadyExist(IdentityError):
+    code = "user_exists"
+    message = "an account with this email already exists"
 
 
-class UserDoesntExist(BelFlixException):
-    pass
+class UserDoesntExist(IdentityError):
+    code = "user_not_found"
+    message = "no such user"

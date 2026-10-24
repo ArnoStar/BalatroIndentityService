@@ -1,7 +1,7 @@
 [project]
-name = "indentityservice"
+name = "balatro-identity-service"
 version = "0.1.0"
-description = "Add your description here"
+description = "Accounts and sign-in for Balatro: email + password, Google, RS256 access tokens with a JWKS"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -13,7 +13,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic-settings>=2.15.0",
     "pydantic[email]>=2.13.5",
-    "pyjwt>=2.15.0",
+    "pyjwt[crypto]>=2.15.0",
     "redis>=8.1.0",
     "sqlalchemy[asyncio]>=2.0.54",
     "uvicorn>=0.53.0",
@@ -21,6 +21,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.22.1",
+    "fakeredis>=2.40.0",
+    "httpx2>=2.16.0",
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
@@ -31,3 +34,23 @@ dev = [
 extend-immutable-calls = [
     "fastapi.Depends",
 ]
+
+[tool.ruff]
+target-version = "py313"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "BLE", "TRY004"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["app", "tests", "alembic"]
+exclude = ["alembic/versions"]
+
+[[tool.mypy.overrides]]
+module = ["fakeredis", "fakeredis.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

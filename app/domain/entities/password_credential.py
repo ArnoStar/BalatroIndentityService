@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from app.domain.value_object.password_hash import PasswordHash
+from app.domain.value_object.password import PasswordHash
 
 
 @dataclass

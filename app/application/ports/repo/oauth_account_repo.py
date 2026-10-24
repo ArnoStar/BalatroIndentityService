@@ -17,12 +17,11 @@ class OAuthAccountRepo(Protocol):
         provider: OAuthProvider,
         user_id: UUID,
     ) -> OAuthAccount | None: ...
-    async def get_providers(
-        self,
-        user_id: UUID,
-    ) -> set[OAuthProvider]: ...
+    async def get_providers(self, user_id: UUID) -> set[OAuthProvider]: ...
     async def delete_by_user_id(
         self,
         provider: OAuthProvider,
         user_id: UUID,
-    ) -> OAuthAccount | None: ...
+    ) -> bool:
+        """False when there was nothing to delete."""
+        ...

@@ -1,28 +1,39 @@
-from collections.abc import AsyncGenerator
+from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import MetaData, event
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase
 
-from app.infrastructure.config.settings import settings
-
-engine = create_async_engine(settings.sql_database_url)
-SessionLocal = async_sessionmaker(engine)
+# stable constraint names, so that migrations can refer to them
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
 
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-async def init_models():
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
+def make_engine(url: str) -> AsyncEngine:
+    engine = create_async_engine(url, pool_pre_ping=True)
+
+    if engine.dialect.name == "sqlite":  # (the tests) honour ON DELETE CASCADE
+
+        @event.listens_for(engine.sync_engine, "connect")
+        def _foreign_keys(dbapi_connection: Any, _: Any) -> None:
+            dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+    return engine
 
 
-async def get_db() -> AsyncGenerator[AsyncSession]:
-    async with SessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(engine, expire_on_commit=False)

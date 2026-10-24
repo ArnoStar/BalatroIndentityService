@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.ports.repo.oauth_account_repo import OAuthAccountRepo
@@ -13,101 +13,72 @@ class SqlalchemyOAuthAccountRepo(OAuthAccountRepo):
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def create(
-        self,
-        account: OAuthAccount,
-    ) -> None:
-        model = self._to_model(account)
-
-        self.session.add(model)
+    async def create(self, account: OAuthAccount) -> None:
+        self.session.add(
+            OAuthAccountModel(
+                id=account.id,
+                user_id=account.user_id,
+                provider=account.provider.value,
+                provider_user_id=account.provider_user_id,
+                created_at=account.created_at,
+                updated_at=account.updated_at,
+            )
+        )
+        await self.session.flush()
 
     async def get_by_provider(
         self,
         provider: OAuthProvider,
         provider_user_id: str,
     ) -> OAuthAccount | None:
-        statement = select(OAuthAccountModel).where(
-            OAuthAccountModel.provider == provider.value,
-            OAuthAccountModel.provider_user_id == provider_user_id,
+        result = await self.session.execute(
+            select(OAuthAccountModel).where(
+                OAuthAccountModel.provider == provider.value,
+                OAuthAccountModel.provider_user_id == provider_user_id,
+            )
         )
-
-        result = await self.session.execute(statement)
         model = result.scalar_one_or_none()
-
-        if model is None:
-            return None
-
-        return self._to_entity(model)
+        return None if model is None else self._to_entity(model)
 
     async def get_by_user_id(
         self,
         provider: OAuthProvider,
         user_id: UUID,
     ) -> OAuthAccount | None:
-        statement = select(OAuthAccountModel).where(
-            OAuthAccountModel.provider == provider.value,
-            OAuthAccountModel.user_id == user_id,
+        result = await self.session.execute(
+            select(OAuthAccountModel).where(
+                OAuthAccountModel.provider == provider.value,
+                OAuthAccountModel.user_id == user_id,
+            )
         )
-
-        result = await self.session.execute(statement)
         model = result.scalar_one_or_none()
+        return None if model is None else self._to_entity(model)
 
-        if model is None:
-            return None
-
-        return self._to_entity(model)
-
-    async def get_providers(
-        self,
-        user_id: UUID,
-    ) -> set[OAuthProvider]:
-        statement = select(OAuthAccountModel.provider).where(
-            OAuthAccountModel.user_id == user_id,
+    async def get_providers(self, user_id: UUID) -> set[OAuthProvider]:
+        result = await self.session.execute(
+            select(OAuthAccountModel.provider).where(
+                OAuthAccountModel.user_id == user_id
+            )
         )
-
-        result = await self.session.execute(statement)
-
         return {OAuthProvider(provider) for provider in result.scalars()}
 
     async def delete_by_user_id(
         self,
         provider: OAuthProvider,
         user_id: UUID,
-    ) -> OAuthAccount | None:
-        statement = select(OAuthAccountModel).where(
-            OAuthAccountModel.provider == provider.value,
-            OAuthAccountModel.user_id == user_id,
+    ) -> bool:
+        result = await self.session.execute(
+            delete(OAuthAccountModel)
+            .where(
+                OAuthAccountModel.provider == provider.value,
+                OAuthAccountModel.user_id == user_id,
+            )
+            .returning(OAuthAccountModel.id)
         )
-
-        result = await self.session.execute(statement)
-        model = result.scalar_one_or_none()
-
-        if model is None:
-            return None
-
-        account = self._to_entity(model)
-
-        await self.session.delete(model)
-
-        return account
+        return result.first() is not None
 
     @staticmethod
-    def _to_model(
-        account: OAuthAccount,
-    ) -> OAuthAccountModel:
-        return OAuthAccountModel(
-            id=account.id,
-            user_id=account.user_id,
-            provider=account.provider.value,
-            provider_user_id=account.provider_user_id,
-            created_at=account.created_at,
-            updated_at=account.updated_at,
-        )
-
-    @staticmethod
-    def _to_entity(
-        model: OAuthAccountModel,
-    ) -> OAuthAccount:
+    def _to_entity(model: OAuthAccountModel) -> OAuthAccount:
         return OAuthAccount(
             id=model.id,
             user_id=model.user_id,

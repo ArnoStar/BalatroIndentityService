@@ -1,73 +1,62 @@
-from uuid import UUID
-
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Response, status
 
 from app.application.dtos.oauth import (
     AuthenticateOAuthInput,
-    AuthenticateOAuthOutput,
     InitiateOAuthInput,
-    InitiateOAuthOutput,
     UnlinkOAuthAccountInput,
 )
-from app.bootstrap.container import RequestContainer
 from app.domain.value_object.oauth_provider import OAuthProvider
-from app.presentation.api.dependencies import get_container, get_current_user_id
-from app.presentation.api.schemas.auth import (
-    AuthenticateOAuthResponse,
-    InitiateOAuthRequest,
-    InitiateOAuthResponse,
-    OAuthProv,
-    UnlinkOAuthRequest,
+from app.presentation.api.dependencies import AppContainer, CurrentUserId, Uses
+from app.presentation.api.schemas.auth import TokenResponse
+from app.presentation.api.schemas.oauth import (
+    AuthorizeRequest,
+    AuthorizeResponse,
+    CallbackRequest,
+    ProvidersResponse,
 )
 
 router = APIRouter(prefix="/oauth", tags=["OAuth"])
 
 
-@router.post("/authenticate", response_model=InitiateOAuthResponse)
-async def authenticate(
-    request: InitiateOAuthRequest,
-    container: RequestContainer = Depends(get_container),
-):
-    dto: InitiateOAuthInput = InitiateOAuthInput(OAuthProvider(request.provider))
+@router.get("/providers", summary="The providers this server can sign in with")
+def providers(container: AppContainer) -> ProvidersResponse:
+    return ProvidersResponse(providers=container.list_oauth_providers.execute())
 
-    callback: InitiateOAuthOutput = await container.initiate_oauth.execute(dto)
 
-    return InitiateOAuthResponse(
-        state=callback.state, callback_url=callback.callback_url
+@router.post("/{provider}/authorize", summary="Start signing in with a provider")
+async def authorize(
+    provider: OAuthProvider, body: AuthorizeRequest, container: AppContainer
+) -> AuthorizeResponse:
+    """Send the browser to ``authorization_url``. The provider sends it back
+    to ``redirect_uri`` with ``code`` and ``state`` in the query, which go to
+    ``POST /oauth/{provider}/callback``. The state is valid for 10 minutes."""
+    output = await container.initiate_oauth.execute(
+        InitiateOAuthInput(provider, body.redirect_uri)
+    )
+    return AuthorizeResponse(
+        authorization_url=output.authorization_url, state=output.state
     )
 
 
-# To test this endpoint with google
-# https://accounts.google.com/o/oauth2/v2/auth?client_id={google_client_id}&redirect_uri=http://localhost:8000/oauth/google/callback&response_type=code&scope=openid%20email%20profile&state={state}
-@router.get("/{provider}/callback", response_model=AuthenticateOAuthResponse)
+@router.post("/{provider}/callback", summary="Finish signing in with a provider")
 async def callback(
-    provider: OAuthProv,
-    state: str,
-    code: str,
-    container: RequestContainer = Depends(get_container),
-):
-    dto: AuthenticateOAuthInput = AuthenticateOAuthInput(
-        provider=OAuthProvider(provider.value),
-        state=state,
-        code=code,
+    provider: OAuthProvider, body: CallbackRequest, uses: Uses
+) -> TokenResponse:
+    tokens = await uses.authenticate_oauth.execute(
+        AuthenticateOAuthInput(provider=provider, state=body.state, code=body.code)
     )
-
-    tokens: AuthenticateOAuthOutput = await container.authenticate_oauth.execute(dto)
-
-    return AuthenticateOAuthResponse(
-        access_token=tokens.token_pair.access_token.value,
-        refresh_token=tokens.token_pair.refresh_token.value,
-    )
+    return TokenResponse.of(tokens)
 
 
-@router.put("/{provider}/unlink", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{provider}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unlink a provider from the account",
+)
 async def unlink(
-    request: UnlinkOAuthRequest,
-    current_user_id: UUID = Depends(get_current_user_id),
-    container: RequestContainer = Depends(get_container),
-):
-    dto: UnlinkOAuthAccountInput = UnlinkOAuthAccountInput(
-        user_id=current_user_id, provider=OAuthProvider(request.provider.value)
-    )
-
-    await container.unlink_oauth.execute(dto)
+    provider: OAuthProvider, user_id: CurrentUserId, uses: Uses
+) -> Response:
+    """Refused (409 ``last_sign_in_method``) when it is the only way left to
+    sign in: set a password first (``/auth/password/forgot``)."""
+    await uses.unlink_oauth.execute(UnlinkOAuthAccountInput(user_id, provider))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

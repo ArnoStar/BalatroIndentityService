@@ -1,20 +1,10 @@
-from uuid import UUID
-
-from app.application.dtos.authentication import (
-    CheckTokenInput,
-    CheckTokenOutput,
-)
-from app.application.ports.token_issuer import TokenIssuer
+from app.application.dtos.authentication import CheckTokenInput, CheckTokenOutput
+from app.application.ports.token_issuer import AccessTokenIssuer
 
 
 class CheckUserToken:
-    def __init__(self, token_issuer: TokenIssuer) -> None:
-        self.token_issuer = token_issuer
+    def __init__(self, access_tokens: AccessTokenIssuer) -> None:
+        self.access_tokens = access_tokens
 
-    def execute(
-        self,
-        dto: CheckTokenInput,
-    ) -> CheckTokenOutput:
-        user_id: UUID = self.token_issuer.check(dto.access_token)
-
-        return CheckTokenOutput(user_id=user_id)
+    def execute(self, dto: CheckTokenInput) -> CheckTokenOutput:
+        return CheckTokenOutput(user_id=self.access_tokens.verify(dto.access_token))

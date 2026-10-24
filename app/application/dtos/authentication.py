@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
-from app.domain.entities.token_pair import TokenPair
+from app.domain.value_object.display_name import DisplayName
 from app.domain.value_object.email import Email
-from app.domain.value_object.tokens import AccessToken, RefreshToken
+from app.domain.value_object.oauth_provider import OAuthProvider
+from app.domain.value_object.password import Password
 
 
 @dataclass(frozen=True)
@@ -13,23 +15,23 @@ class AuthUserInput:
 
 
 @dataclass(frozen=True)
-class AuthUserOutput:
-    token_pair: TokenPair
-
-
-@dataclass(frozen=True)
 class RefreshTokenInput:
-    refresh_token: RefreshToken
+    refresh_token: str
 
 
 @dataclass(frozen=True)
-class RefreshTokenOutput:
-    token_pair: TokenPair
+class LogoutInput:
+    refresh_token: str
+
+
+@dataclass(frozen=True)
+class LogoutAllInput:
+    user_id: UUID
 
 
 @dataclass(frozen=True)
 class CheckTokenInput:
-    access_token: AccessToken
+    access_token: str
 
 
 @dataclass(frozen=True)
@@ -38,17 +40,39 @@ class CheckTokenOutput:
 
 
 @dataclass(frozen=True)
+class GetAccountInput:
+    user_id: UUID
+
+
+@dataclass(frozen=True)
+class AccountOutput:
+    id: UUID
+    email: Email
+    display_name: DisplayName
+    email_verified: bool
+    has_password: bool
+    providers: list[OAuthProvider]
+    created_at: datetime
+
+
+@dataclass(frozen=True)
 class DeleteUserInput:
     user_id: UUID
 
 
 @dataclass(frozen=True)
-class InitiateChangePasswordInput:
+class RequestPasswordResetInput:
     email: Email
 
 
 @dataclass(frozen=True)
-class ChangePasswordInput:
+class ResetPasswordInput:
     email: Email
     code: str
-    password: str
+    password: Password
+
+
+@dataclass(frozen=True)
+class UpdateAccountInput:
+    user_id: UUID
+    display_name: DisplayName | None = None

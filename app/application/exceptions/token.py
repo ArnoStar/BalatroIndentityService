@@ -1,9 +1,6 @@
-from app.application.exceptions.deps import BelFlixException
+from app.application.exceptions.base import IdentityError
 
 
-class InvalidToken(BelFlixException):
-    pass
-
-
-class WrongTokenType(BelFlixException):
-    pass
+class InvalidToken(IdentityError):
+    code = "invalid_token"
+    message = "the token is invalid or has expired"

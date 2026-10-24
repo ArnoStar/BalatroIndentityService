@@ -1,31 +1,69 @@
+import base64
+import hashlib
+import secrets
+from collections.abc import Collection
+
 from app.application.dtos.oauth import (
     InitiateOAuthInput,
     InitiateOAuthOutput,
+    PendingOAuthLogin,
 )
-from app.application.ports.oauth.oauth_state_manager import OAuthStateManager
-from app.application.ports.oauth.oauth_url_manager import OAuthUrlManager
+from app.application.exceptions.oauth import (
+    OAuthProviderNotConfigured,
+    RedirectUriNotAllowed,
+)
+from app.application.ports.oauth.oauth_client import OAuthClient
+from app.application.ports.oauth.oauth_state_store import OAuthStateStore
+from app.domain.value_object.oauth_provider import OAuthProvider
+
+
+class ListOAuthProviders:
+    def __init__(self, oauth_client: OAuthClient) -> None:
+        self.oauth_client = oauth_client
+
+    def execute(self) -> list[OAuthProvider]:
+        return self.oauth_client.providers()
 
 
 class InitiateOAuth:
+    """Starts an authorization code flow (with PKCE): the client sends the
+    browser to ``authorization_url``; the provider sends it back to
+    ``redirect_uri`` with a code and the state, which the client gives to
+    AuthenticateOAuth."""
+
     def __init__(
         self,
-        oauth_state_manager: OAuthStateManager,
-        oauth_url_manager: OAuthUrlManager,
+        oauth_client: OAuthClient,
+        oauth_state_store: OAuthStateStore,
+        allowed_redirect_uris: Collection[str],
     ) -> None:
-        self.oauth_state_manager = oauth_state_manager
-        self.oauth_url_manager = oauth_url_manager
+        self.oauth_client = oauth_client
+        self.oauth_state_store = oauth_state_store
+        self.allowed_redirect_uris = allowed_redirect_uris
 
-    async def execute(
-        self,
-        dto: InitiateOAuthInput,
-    ) -> InitiateOAuthOutput:
-        state = await self.oauth_state_manager.generate(dto.provider)
+    async def execute(self, dto: InitiateOAuthInput) -> InitiateOAuthOutput:
+        if dto.provider not in self.oauth_client.providers():
+            raise OAuthProviderNotConfigured
 
-        callback_url = self.oauth_url_manager.get_callback_url(
-            dto.provider,
+        if dto.redirect_uri not in self.allowed_redirect_uris:
+            raise RedirectUriNotAllowed
+
+        state = secrets.token_urlsafe(32)
+        code_verifier = secrets.token_urlsafe(64)
+        code_challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+
+        await self.oauth_state_store.save(
+            state,
+            PendingOAuthLogin(dto.provider, dto.redirect_uri, code_verifier),
         )
 
         return InitiateOAuthOutput(
             state=state,
-            callback_url=callback_url,
+            authorization_url=self.oauth_client.authorization_url(
+                dto.provider, state, code_challenge, dto.redirect_uri
+            ),
         )

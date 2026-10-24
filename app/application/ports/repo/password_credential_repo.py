@@ -2,6 +2,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.domain.entities.password_credential import PasswordCredential
+from app.domain.value_object.password import PasswordHash
 
 
 class PasswordCredentialRepo(Protocol):
@@ -10,6 +11,6 @@ class PasswordCredentialRepo(Protocol):
     async def change_password(
         self,
         user_id: UUID,
-        password_hash: str,
+        password_hash: PasswordHash,
     ) -> None: ...
-    async def delete_by_id(self, user_id: UUID) -> None: ...
+    async def delete_by_user_id(self, user_id: UUID) -> None: ...

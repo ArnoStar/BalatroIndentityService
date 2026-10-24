@@ -1,0 +1,96 @@
+# Checks every push and pull request (ruff, mypy, tests, the migration, the
+# Docker image); deploys main to the server, where BalatroFrontEnd's
+# docker-compose.yml runs this service with the rest of the game. See
+# README.md, "Deployment".
+name: CI/CD
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Ruff, mypy, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.3"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: make check
+
+  migration:
+    name: The migration matches the models (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: identity
+          POSTGRES_PASSWORD: identity
+          POSTGRES_DB: identity
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U identity" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://identity:identity@localhost:5432/identity
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.3"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run alembic upgrade head
+      - run: uv run alembic check
+      - run: uv run alembic downgrade base
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t balatro-identity:ci .
+
+  deploy:
+    name: Deploy to the server
+    needs: [check, migration, image]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the deployment secrets
+        id: config
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::warning::Not deployed: the DEPLOY_* secrets are not set (README.md, Deployment)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy
+        if: steps.config.outputs.ready == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: .github/deploy.sh

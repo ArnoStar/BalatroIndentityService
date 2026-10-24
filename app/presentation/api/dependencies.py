@@ -1,35 +1,53 @@
+from collections.abc import AsyncGenerator
+from typing import Annotated
 from uuid import UUID
 
-from aio_pika.abc import AbstractChannel
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.dtos.authentication import CheckTokenInput, CheckTokenOutput
-from app.bootstrap.container import RequestContainer
-from app.domain.value_object.tokens import AccessToken
-from app.infrastructure.httpx.httpx import get_httpx_client
-from app.infrastructure.rabbitmq.rabbitmq import get_rabbitmq_chanel
-from app.infrastructure.sqlalchemy.sqlalchemy import get_db
+from app.application.dtos.authentication import CheckTokenInput
+from app.application.exceptions.token import InvalidToken
+from app.bootstrap.container import Container, RequestContainer
 
-bearer = HTTPBearer()
+bearer = HTTPBearer(auto_error=False, description="an access token")
+
+
+def get_app_container(request: Request) -> Container:
+    container: Container = request.app.state.container
+    return container
+
+
+AppContainer = Annotated[Container, Depends(get_app_container)]
+
+
+async def get_session(container: AppContainer) -> AsyncGenerator[AsyncSession]:
+    # what isn't committed by the use case is rolled back when it closes
+    async with container.sessionmaker() as session:
+        yield session
 
 
 async def get_container(
-    session: AsyncSession = Depends(get_db),
-    httpx_client: AsyncClient = Depends(get_httpx_client),
-    rabbitmq_chanel: AbstractChannel = Depends(get_rabbitmq_chanel),
+    container: AppContainer,
+    # ("function": the session closes before the response is sent)
+    session: Annotated[AsyncSession, Depends(get_session, scope="function")],
 ) -> RequestContainer:
-    return RequestContainer(session, httpx_client, rabbitmq_chanel)
+    return container.request(session)
+
+
+Uses = Annotated[RequestContainer, Depends(get_container)]
 
 
 def get_current_user_id(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
-    container: RequestContainer = Depends(get_container),
+    container: AppContainer,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
 ) -> UUID:
-    dto: CheckTokenInput = CheckTokenInput(AccessToken(credentials.credentials))
+    if credentials is None:
+        raise InvalidToken("an access token is required (Authorization: Bearer)")
+    output = container.check_user_token.execute(
+        CheckTokenInput(credentials.credentials)
+    )
+    return output.user_id
 
-    user_id: CheckTokenOutput = container.check_user_token.execute(dto)
 
-    return user_id.user_id
+CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]

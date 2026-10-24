@@ -5,7 +5,6 @@ from uuid import UUID
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.infrastructure.sqlalchemy.model.user import UserModel
 from app.infrastructure.sqlalchemy.sqlalchemy import Base
 
 if TYPE_CHECKING:
@@ -16,28 +15,14 @@ class PasswordCredentialModel(Base):
     __tablename__ = "password_credentials"
 
     user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-
-    password_hash: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-    )
-
+    password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+        DateTime(timezone=True), server_default=func.now()
     )
-
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["UserModel"] = relationship(
-        back_populates="password_credential",
-    )
+    user: Mapped["UserModel"] = relationship(back_populates="password_credential")

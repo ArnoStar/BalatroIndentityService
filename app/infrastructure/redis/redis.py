@@ -1,5 +1,3 @@
-from redis.asyncio import Redis
-
-from app.infrastructure.config.settings import settings
-
-redis = Redis(host=settings.redis_host, port=settings.redis_port, decode_responses=True)
+def text(value: bytes | str) -> str:
+    """A Redis reply as text (the client decodes replies, but is typed for both)."""
+    return value.decode() if isinstance(value, bytes) else value
