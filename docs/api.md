@@ -178,15 +178,32 @@ redirected to → **200** tokens.
 - A new one is linked to the account with the same email. Google must say the
   email is verified. If that account was never confirmed, its password is
   removed: whoever registered it hadn't proved they own the address.
-- With no account for the email, a new one is created, with a random display
-  name (`Player1234`).
+- With no account for the email, a new one is created. Its display name is
+  the Google profile's name, keeping only the allowed characters and at most
+  24 of them, or a random one (`Player1234`) when too little is left. Google
+  is asked for the `openid email profile` scopes.
+- When the flow started at `/oauth/{provider}/link`, the provider's account is
+  linked to that signed-in account instead, whatever its email.
 
 | Error | |
 |---|---|
 | 400 `invalid_oauth_state` | unknown, expired or used state, or another provider's |
 | 400 `oauth_exchange_failed` | Google refused the code (expired, used, or a wrong `redirect_uri`) |
 | 403 `oauth_email_not_verified` | |
-| 409 `oauth_account_conflict` | the account with this email is already linked to another Google account |
+| 409 `oauth_account_conflict` | the account is already linked to another Google account |
+| 409 `oauth_account_in_use` | (linking) this Google account belongs to another player |
+
+### `POST /oauth/{provider}/link` 🔒
+
+`{"redirect_uri": "..."}` → as `/authorize`, for a signed-in player who wants
+to sign in with that provider too, whatever the provider account's email.
+The callback (`POST /oauth/{provider}/callback`, as above) links it and
+answers with tokens for this account: keep them, they start a new session.
+
+| Error | |
+|---|---|
+| 401 `invalid_token` | not signed in |
+| 400 `redirect_uri_not_allowed`, 404 `oauth_provider_disabled` | as `/authorize` |
 
 ### `DELETE /oauth/{provider}` 🔒
 

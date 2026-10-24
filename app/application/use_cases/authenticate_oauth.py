@@ -1,11 +1,12 @@
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from app.application.dtos.oauth import AuthenticateOAuthInput
+from app.application.dtos.oauth import AuthenticateOAuthInput, OAuthIdentity
 from app.application.dtos.tokens import TokenPair
 from app.application.exceptions.oauth import (
     InvalidOAuthState,
     OAuthAccountConflict,
+    OAuthAccountInUse,
     OAuthEmailNotVerified,
 )
 from app.application.ports.oauth.oauth_client import OAuthClient
@@ -26,7 +27,9 @@ from app.domain.value_object.display_name import DisplayName
 
 class AuthenticateOAuth:
     """Signs in with a provider's authorization code. A new provider account
-    is linked to the user with the same (verified) email, or makes a new user."""
+    is linked to the user with the same (verified) email, or makes a new user
+    (named after the provider's profile). When a signed-in user started the
+    flow to link the provider (``link_to``), it is linked to them instead."""
 
     def __init__(
         self,
@@ -66,6 +69,9 @@ class AuthenticateOAuth:
             provider_user_id=identity.provider_user_id,
         )
 
+        if pending.link_to is not None:
+            return await self._link(pending.link_to, identity, oauth_account)
+
         if oauth_account is not None:
             linked_user = await self.user_repo.get_by_id(oauth_account.user_id)
             if linked_user is None:  # (deleted meanwhile)
@@ -83,7 +89,7 @@ class AuthenticateOAuth:
             user = User(
                 id=uuid4(),
                 email=identity.email,
-                display_name=DisplayName.random(),
+                display_name=DisplayName.from_profile(identity.name),
                 email_verified_at=now,
                 created_at=now,
                 updated_at=now,
@@ -102,6 +108,36 @@ class AuthenticateOAuth:
                 await self.password_credential_repo.delete_by_user_id(user.id)
                 await self.user_repo.verify_email(user.id, now)
 
+        await self._create_link(user, identity)
+        await self.unit_of_work.commit()
+
+        return await issue_tokens(self.access_tokens, self.sessions, user)
+
+    async def _link(
+        self,
+        user_id: UUID,
+        identity: OAuthIdentity,
+        oauth_account: OAuthAccount | None,
+    ) -> TokenPair:
+        user = await self.user_repo.get_by_id(user_id)
+        if user is None:  # (deleted meanwhile)
+            raise InvalidOAuthState
+
+        if oauth_account is not None:
+            if oauth_account.user_id != user.id:
+                raise OAuthAccountInUse
+            # (linked already: nothing to do)
+            return await issue_tokens(self.access_tokens, self.sessions, user)
+
+        if await self.oauth_account_repo.get_by_user_id(identity.provider, user.id):
+            raise OAuthAccountConflict
+
+        await self._create_link(user, identity)
+        await self.unit_of_work.commit()
+        return await issue_tokens(self.access_tokens, self.sessions, user)
+
+    async def _create_link(self, user: User, identity: OAuthIdentity) -> None:
+        now = datetime.now(UTC)
         await self.oauth_account_repo.create(
             OAuthAccount(
                 id=uuid4(),
@@ -112,6 +148,3 @@ class AuthenticateOAuth:
                 updated_at=now,
             )
         )
-        await self.unit_of_work.commit()
-
-        return await issue_tokens(self.access_tokens, self.sessions, user)

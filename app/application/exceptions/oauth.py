@@ -36,6 +36,11 @@ class LastSignInMethod(IdentityError):
     message = "set a password before unlinking the only way to sign in"
 
 
+class OAuthAccountInUse(IdentityError):
+    code = "oauth_account_in_use"
+    message = "this provider account is already linked to another player"
+
+
 class OAuthAccountConflict(IdentityError):
     code = "oauth_account_conflict"
     message = "this account is already linked to another account of that provider"

@@ -29,7 +29,8 @@ class InitiateOAuth:
     """Starts an authorization code flow (with PKCE): the client sends the
     browser to ``authorization_url``; the provider sends it back to
     ``redirect_uri`` with a code and the state, which the client gives to
-    AuthenticateOAuth."""
+    AuthenticateOAuth. With ``link_to`` (a signed-in user), the provider's
+    account is linked to that user whatever its email."""
 
     def __init__(
         self,
@@ -58,7 +59,9 @@ class InitiateOAuth:
 
         await self.oauth_state_store.save(
             state,
-            PendingOAuthLogin(dto.provider, dto.redirect_uri, code_verifier),
+            PendingOAuthLogin(
+                dto.provider, dto.redirect_uri, code_verifier, dto.link_to
+            ),
         )
 
         return InitiateOAuthOutput(

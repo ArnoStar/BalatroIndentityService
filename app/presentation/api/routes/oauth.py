@@ -38,6 +38,27 @@ async def authorize(
     )
 
 
+@router.post(
+    "/{provider}/link", summary="Start linking a provider to the signed-in account"
+)
+async def link(
+    provider: OAuthProvider,
+    body: AuthorizeRequest,
+    user_id: CurrentUserId,
+    container: AppContainer,
+) -> AuthorizeResponse:
+    """As ``/authorize``, but the provider's account (whatever its email) is
+    linked to the signed-in account when the callback completes. The callback
+    answers with tokens for this account. 409 ``oauth_account_in_use`` when
+    that provider account belongs to another player."""
+    output = await container.initiate_oauth.execute(
+        InitiateOAuthInput(provider, body.redirect_uri, link_to=user_id)
+    )
+    return AuthorizeResponse(
+        authorization_url=output.authorization_url, state=output.state
+    )
+
+
 @router.post("/{provider}/callback", summary="Finish signing in with a provider")
 async def callback(
     provider: OAuthProvider, body: CallbackRequest, uses: Uses

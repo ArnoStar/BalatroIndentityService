@@ -29,6 +29,18 @@ class DisplayName:
         object.__setattr__(self, "value", normalized)
 
     @classmethod
+    def from_profile(cls, name: str | None) -> "DisplayName":
+        """The closest valid name to a provider's profile name (characters
+        that aren't allowed dropped, cut to the maximum length), or a random
+        one when too little is left."""
+        if name:
+            kept = "".join(c if _ALLOWED.match(c) else " " for c in name)
+            kept = " ".join(kept.split())[:MAX_LENGTH].strip()
+            if len(kept) >= MIN_LENGTH:
+                return cls(kept)
+        return cls.random()
+
+    @classmethod
     def random(cls) -> "DisplayName":
         """For an account made by a provider's sign-in (changeable later)."""
         return cls(f"Player{secrets.randbelow(10_000):04d}")
