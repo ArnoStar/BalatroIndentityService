@@ -9,7 +9,7 @@ import httpx
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.application.ports.email_sender import EmailSender
+from app.application.ports.code_sender import CodeSender
 from app.application.ports.oauth.oauth_client import OAuthClient
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.token_issuer import AccessTokenIssuer
@@ -32,11 +32,13 @@ from app.application.use_cases.unlink_oauth import UnlinkOAuthAccount
 from app.application.use_cases.update_account import UpdateAccount
 from app.infrastructure.bcrypt import BcryptPasswordHasher
 from app.infrastructure.config.settings import EmailBackend, Settings
+from app.infrastructure.email.code_sender import EmailCodeSender
 from app.infrastructure.email.console import ConsoleEmailSender
-from app.infrastructure.email.rabbitmq import RabbitMqEmailSender
+from app.infrastructure.email.sender import EmailSender
 from app.infrastructure.email.smtp import SmtpEmailSender
 from app.infrastructure.jwt.access_tokens import JwtAccessTokenIssuer
 from app.infrastructure.jwt.keys import SigningKey, load_signing_key
+from app.infrastructure.notifications.rabbitmq import NotificationServiceCodeSender
 from app.infrastructure.oauth.client import HttpxOAuthClient
 from app.infrastructure.redis.confirmation_codes import RedisConfirmationCodes
 from app.infrastructure.redis.login_attempts import RedisLoginAttempts
@@ -53,10 +55,16 @@ from app.infrastructure.sqlalchemy.sqlalchemy import make_engine, make_sessionma
 from app.infrastructure.sqlalchemy.unit_of_work import SqlalchemyUnitOfWork
 
 
-def make_email_sender(settings: Settings) -> EmailSender:
-    match settings.email_backend:
-        case EmailBackend.SMTP:
-            return SmtpEmailSender(
+def make_code_sender(
+    settings: Settings, email_sender: EmailSender | None = None
+) -> CodeSender:
+    """The codes go to the notification service, or out as emails from here
+    (``email_sender``, or the one the settings name)."""
+    if settings.email_backend is EmailBackend.NOTIFICATIONS and email_sender is None:
+        return NotificationServiceCodeSender(settings.rabbitmq_url)
+    if email_sender is None:
+        if settings.email_backend is EmailBackend.SMTP:
+            email_sender = SmtpEmailSender(
                 host=settings.smtp_host,
                 port=settings.smtp_port,
                 sender=settings.email_from,
@@ -64,10 +72,9 @@ def make_email_sender(settings: Settings) -> EmailSender:
                 password=settings.smtp_password,
                 security=settings.smtp_security,
             )
-        case EmailBackend.RABBITMQ:
-            return RabbitMqEmailSender(settings.rabbitmq_url)
-        case _:
-            return ConsoleEmailSender()
+        else:
+            email_sender = ConsoleEmailSender()
+    return EmailCodeSender(email_sender)
 
 
 class Container:
@@ -93,7 +100,7 @@ class Container:
             settings.redis_url, decode_responses=True
         )
         self.http = http or httpx.AsyncClient(timeout=10)
-        self.email_sender = email_sender or make_email_sender(settings)
+        self.code_sender = make_code_sender(settings, email_sender)
         self.signing_key = signing_key or load_signing_key(
             settings.jwt_private_key,
             settings.jwt_private_key_file,
@@ -131,8 +138,8 @@ class Container:
 
     async def close(self) -> None:
         await self.http.aclose()
-        if isinstance(self.email_sender, RabbitMqEmailSender):
-            await self.email_sender.close()
+        if isinstance(self.code_sender, NotificationServiceCodeSender):
+            await self.code_sender.close()
         await self.redis.aclose()
         await self.engine.dispose()
 
@@ -151,7 +158,7 @@ class RequestContainer:
             password_hasher=app.password_hasher,
             unit_of_work=unit_of_work,
             confirmation_codes=app.confirmation_codes,
-            email_sender=app.email_sender,
+            code_sender=app.code_sender,
         )
         self.confirm_email = ConfirmEmail(
             confirmation_codes=app.confirmation_codes,
@@ -161,7 +168,7 @@ class RequestContainer:
         self.resend_confirmation = ResendConfirmation(
             user_repo=user_repo,
             confirmation_codes=app.confirmation_codes,
-            email_sender=app.email_sender,
+            code_sender=app.code_sender,
         )
         self.authenticate_user = AuthenticateUser(
             user_repo=user_repo,
@@ -192,7 +199,7 @@ class RequestContainer:
         self.request_password_reset = RequestPasswordReset(
             user_repo=user_repo,
             confirmation_codes=app.confirmation_codes,
-            email_sender=app.email_sender,
+            code_sender=app.code_sender,
         )
         self.reset_password = ResetPassword(
             confirmation_codes=app.confirmation_codes,

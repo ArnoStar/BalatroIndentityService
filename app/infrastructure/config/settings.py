@@ -8,7 +8,9 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 class EmailBackend(StrEnum):
     CONSOLE = "console"  # writes the emails to the log (development)
     SMTP = "smtp"
-    RABBITMQ = "rabbitmq"  # publishes them for a mail worker
+    # hands the codes to the notification service (BalatroNotificationService)
+    # through RabbitMQ: it writes and sends the emails
+    NOTIFICATIONS = "notifications"
 
 
 class Settings(BaseSettings):
@@ -55,7 +57,8 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     # "starttls" (port 587), "ssl" (port 465) or "none"
     smtp_security: str = "starttls"
-    rabbitmq_url: str = "amqp://guest:guest@localhost/"
+    # with EMAIL_BACKEND=notifications (the compose file's rabbitmq)
+    rabbitmq_url: str = "amqp://balatro:balatro@localhost:5672/"
 
     google_client_id: str | None = None
     google_client_secret: str | None = None

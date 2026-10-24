@@ -4,8 +4,8 @@ from uuid import uuid4
 from app.application.dtos.registration import RegisterUserInput, RegisterUserOutput
 from app.application.exceptions.auth import EmailNotVerified
 from app.application.exceptions.user import UserAlreadyExist
+from app.application.ports.code_sender import CodeSender
 from app.application.ports.confirmation_codes import CodePurpose, ConfirmationCodes
-from app.application.ports.email_sender import EmailSender
 from app.application.ports.password_hasher import PasswordHasher
 from app.application.ports.repo.password_credential_repo import (
     PasswordCredentialRepo,
@@ -28,14 +28,14 @@ class RegisterUser:
         password_hasher: PasswordHasher,
         unit_of_work: UnitOfWork,
         confirmation_codes: ConfirmationCodes,
-        email_sender: EmailSender,
+        code_sender: CodeSender,
     ) -> None:
         self.user_repo = user_repo
         self.password_credential_repo = password_credential_repo
         self.password_hasher = password_hasher
         self.unit_of_work = unit_of_work
         self.confirmation_codes = confirmation_codes
-        self.email_sender = email_sender
+        self.code_sender = code_sender
 
     async def execute(self, dto: RegisterUserInput) -> RegisterUserOutput:
         existing_user = await self.user_repo.get_by_email(dto.email)
@@ -71,7 +71,7 @@ class RegisterUser:
 
         await try_send_code(
             self.confirmation_codes,
-            self.email_sender,
+            self.code_sender,
             CodePurpose.VERIFY_EMAIL,
             user.email,
         )

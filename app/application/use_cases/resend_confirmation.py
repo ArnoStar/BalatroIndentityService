@@ -1,6 +1,6 @@
 from app.application.dtos.registration import ResendConfirmationInput
+from app.application.ports.code_sender import CodeSender
 from app.application.ports.confirmation_codes import CodePurpose, ConfirmationCodes
-from app.application.ports.email_sender import EmailSender
 from app.application.ports.repo.user_repo import UserRepo
 from app.application.use_cases._shared import send_code
 
@@ -13,11 +13,11 @@ class ResendConfirmation:
         self,
         user_repo: UserRepo,
         confirmation_codes: ConfirmationCodes,
-        email_sender: EmailSender,
+        code_sender: CodeSender,
     ) -> None:
         self.user_repo = user_repo
         self.confirmation_codes = confirmation_codes
-        self.email_sender = email_sender
+        self.code_sender = code_sender
 
     async def execute(self, dto: ResendConfirmationInput) -> None:
         user = await self.user_repo.get_by_email(dto.email)
@@ -27,7 +27,7 @@ class ResendConfirmation:
 
         await send_code(
             self.confirmation_codes,
-            self.email_sender,
+            self.code_sender,
             CodePurpose.VERIFY_EMAIL,
             user.email,
         )

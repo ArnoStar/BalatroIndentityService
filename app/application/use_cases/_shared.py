@@ -5,28 +5,14 @@ import logging
 from app.application.dtos.tokens import TokenPair
 from app.application.exceptions.auth import TooManyAttempts
 from app.application.exceptions.email import EmailDeliveryFailed
+from app.application.ports.code_sender import CodeSender
 from app.application.ports.confirmation_codes import CodePurpose, ConfirmationCodes
-from app.application.ports.email_sender import EmailSender
 from app.application.ports.session_store import SessionStore
 from app.application.ports.token_issuer import AccessTokenIssuer
 from app.domain.entities.user import User
 from app.domain.value_object.email import Email
 
 log = logging.getLogger(__name__)
-
-_MESSAGES = {
-    CodePurpose.VERIFY_EMAIL: (
-        "Confirm your email",
-        "Your confirmation code is {code}. It expires in 10 minutes.",
-    ),
-    CodePurpose.RESET_PASSWORD: (
-        "Reset your password",
-        (
-            "Your password reset code is {code}. It expires in 10 minutes.\n"
-            "If you didn't ask for it, ignore this email."
-        ),
-    ),
-}
 
 
 async def issue_tokens(
@@ -41,18 +27,17 @@ async def issue_tokens(
 
 async def send_code(
     codes: ConfirmationCodes,
-    email_sender: EmailSender,
+    code_sender: CodeSender,
     purpose: CodePurpose,
     email: Email,
 ) -> None:
     code = await codes.issue(purpose, email)
-    subject, body = _MESSAGES[purpose]
-    await email_sender.send(email, subject, body.format(code=code))
+    await code_sender.send_code(email, purpose, code)
 
 
 async def try_send_code(
     codes: ConfirmationCodes,
-    email_sender: EmailSender,
+    code_sender: CodeSender,
     purpose: CodePurpose,
     email: Email,
 ) -> None:
@@ -60,6 +45,6 @@ async def try_send_code(
     fails (or waits for the cooldown) is logged, and the user asks for another
     code."""
     try:
-        await send_code(codes, email_sender, purpose, email)
+        await send_code(codes, code_sender, purpose, email)
     except (EmailDeliveryFailed, TooManyAttempts):
         log.warning("could not send the %s code", purpose, exc_info=True)
