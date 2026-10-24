@@ -13,6 +13,7 @@ class OAuthIdentity:
     provider_user_id: str
     email: Email
     email_verified: bool
+    name: str | None = None  # the profile's name, for a new account's display name
 
 
 @dataclass(frozen=True)
@@ -22,12 +23,15 @@ class PendingOAuthLogin:
     provider: OAuthProvider
     redirect_uri: str
     code_verifier: str  # PKCE
+    # set when a signed-in user links the provider to their account
+    link_to: UUID | None = None
 
 
 @dataclass(frozen=True)
 class InitiateOAuthInput:
     provider: OAuthProvider
     redirect_uri: str
+    link_to: UUID | None = None
 
 
 @dataclass(frozen=True)

@@ -74,12 +74,38 @@ Settings are environment variables, or lines of a `.env` file.
 
 ### Google sign-in
 
-1. In the Google Cloud console, go to *APIs & Services → Credentials →
-   Create credentials → OAuth client ID*, and choose the type *Web application*.
-2. Add each `OAUTH_REDIRECT_URIS` entry as an *Authorized redirect URI*,
-   for example `https://example.com/auth/callback`.
-3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `GET /oauth/providers`
-   then lists `google`, and the portal shows its button.
+The code is all there (here and in the portal). It turns on when the service
+has a Google client id and secret.
+
+1. At https://console.cloud.google.com, create a project, or pick one.
+2. *APIs & Services → OAuth consent screen*: choose *External* and fill in the
+   app's name and your email. The scopes are `openid`, `email` and `profile`;
+   they need no review. While the app is in *Testing*, add the Google accounts
+   that may sign in under *Test users*. *Publish* it to open it to everyone.
+3. *APIs & Services → Credentials → Create credentials → OAuth client ID*, of
+   type *Web application*. Under *Authorized redirect URIs*, add the portal's
+   callback page for each place the site runs, exactly as in
+   `OAUTH_REDIRECT_URIS`:
+   - `http://localhost:5174/auth/callback`: development, the portal's dev server;
+   - `http://localhost:8087/auth/callback`: the Docker stack;
+   - `https://<your domain>/auth/callback`: the server (`PUBLIC_URL` +
+     `/auth/callback`; the compose file sets `OAUTH_REDIRECT_URIS` to it).
+4. Give the service the client id and secret:
+   - for `make run`: `GOOGLE_CLIENT_ID=...` and `GOOGLE_CLIENT_SECRET=...` in
+     this repository's `.env`;
+   - for the Docker stack and the server: the same two lines in
+     `BalatroFrontEnd/.env` (on the server, `/opt/balatro/BalatroFrontEnd/.env`),
+     then restart `identity`.
+
+`GET /oauth/providers` then lists `google`. The portal shows *Continue with
+Google* on its sign-in and registration pages, and *Link Google* on the
+account page.
+
+What happens when someone signs in with Google is in
+[docs/api.md](docs/api.md#sign-in-with-a-provider): an existing link signs in,
+a verified email matching an account links it, otherwise a new account named
+after the Google profile is created. *Link Google*, on the account page, links
+any Google account to the signed-in player.
 
 ### Email
 

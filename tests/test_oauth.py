@@ -15,9 +15,15 @@ from tests.conftest import (
 
 
 def google_user(
-    sub: str = "g-1", email: str = "player@example.com", verified: bool = True
+    sub: str = "g-1",
+    email: str = "player@example.com",
+    verified: bool = True,
+    name: str | None = None,
 ) -> dict[str, Any]:
-    return {"sub": sub, "email": email, "email_verified": verified}
+    user: dict[str, Any] = {"sub": sub, "email": email, "email_verified": verified}
+    if name is not None:
+        user["name"] = name
+    return user
 
 
 def sign_in(client: TestClient, google: FakeGoogle, code: str) -> Any:
@@ -147,3 +153,83 @@ def test_unlink(client: TestClient, outbox: Outbox, google: FakeGoogle) -> None:
     tokens = login(client)
     assert client.delete("/oauth/google", headers=bearer(tokens)).status_code == 204
     assert client.delete("/oauth/google", headers=bearer(tokens)).status_code == 404
+
+
+def link(client: TestClient, tokens: dict[str, Any], code: str) -> Any:
+    start = client.post(
+        "/oauth/google/link",
+        json={"redirect_uri": REDIRECT_URI},
+        headers=bearer(tokens),
+    )
+    assert start.status_code == 200, start.text
+    state = start.json()["state"]
+    return client.post("/oauth/google/callback", json={"code": code, "state": state})
+
+
+def test_a_new_user_is_named_after_the_profile(
+    client: TestClient, google: FakeGoogle
+) -> None:
+    google.users["c1"] = google_user(name="  Jöker <Fan>!  ")
+    tokens = sign_in(client, google, "c1").json()
+    assert client.get("/auth/me", headers=bearer(tokens)).json()["display_name"] == (
+        "Jöker Fan"
+    )
+    google.users["c2"] = google_user(sub="g-2", email="b@example.com", name="<>")
+    tokens = sign_in(client, google, "c2").json()
+    name = client.get("/auth/me", headers=bearer(tokens)).json()["display_name"]
+    assert name.startswith("Player")
+
+
+def test_the_profile_scope_is_asked(client: TestClient) -> None:
+    body = client.post(
+        "/oauth/google/authorize", json={"redirect_uri": REDIRECT_URI}
+    ).json()
+    query = parse_qs(urlparse(body["authorization_url"]).query)
+    assert query["scope"] == ["openid email profile"]
+
+
+def test_link_a_google_account_with_another_email(
+    client: TestClient, outbox: Outbox, google: FakeGoogle
+) -> None:
+    register(client, outbox)
+    tokens = login(client)
+    google.users["c1"] = google_user(email="someone.else@gmail.com")
+
+    response = link(client, tokens, "c1")
+    assert response.status_code == 200, response.text
+    me = client.get("/auth/me", headers=bearer(response.json())).json()
+    assert me["email"] == "player@example.com"
+    assert me["providers"] == ["google"]
+
+    # and Google signs in to this account from now on
+    again = sign_in(client, google, "c1").json()
+    assert client.get("/auth/me", headers=bearer(again)).json()["id"] == me["id"]
+
+
+def test_link_needs_a_signed_in_user(client: TestClient) -> None:
+    response = client.post("/oauth/google/link", json={"redirect_uri": REDIRECT_URI})
+    assert response.status_code == 401
+
+
+def test_link_a_google_account_of_another_player(
+    client: TestClient, outbox: Outbox, google: FakeGoogle
+) -> None:
+    google.users["c1"] = google_user(email="first@gmail.com")
+    sign_in(client, google, "c1")  # first@gmail.com's account owns g-1
+
+    register(client, outbox)
+    response = link(client, login(client), "c1")
+    assert response.status_code == 409
+    assert response.json()["code"] == "oauth_account_in_use"
+
+
+def test_link_twice(client: TestClient, outbox: Outbox, google: FakeGoogle) -> None:
+    register(client, outbox)
+    tokens = login(client)
+    google.users["c1"] = google_user(sub="g-1", email="x@gmail.com")
+    google.users["c2"] = google_user(sub="g-2", email="y@gmail.com")
+    assert link(client, tokens, "c1").status_code == 200
+    assert link(client, tokens, "c1").status_code == 200  # the same: nothing to do
+    response = link(client, tokens, "c2")  # another Google account
+    assert response.status_code == 409
+    assert response.json()["code"] == "oauth_account_conflict"

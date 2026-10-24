@@ -32,6 +32,11 @@ def test_display_name() -> None:
     assert DisplayName("  Lucky   Cat ").value == "Lucky Cat"
     assert DisplayName("Jöker_1.2-3").value == "Jöker_1.2-3"
     assert len(DisplayName.random().value) == 10
+    assert DisplayName.from_profile("Ada  Lovelace").value == "Ada Lovelace"
+    assert DisplayName.from_profile("x" * 40).value == "x" * 24
+    assert DisplayName.from_profile("李小龍").value == "李小龍"
+    assert DisplayName.from_profile("!!").value.startswith("Player")
+    assert DisplayName.from_profile(None).value.startswith("Player")
     for bad in ["ab", "  a  ", "x" * 25, "a<b>c", "new\nline\x00"]:
         with pytest.raises(InvalidDisplayName):
             DisplayName(bad)

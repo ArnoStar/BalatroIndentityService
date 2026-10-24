@@ -57,7 +57,7 @@ class HttpxOAuthClient(OAuthClient):
                 "client_id": self.google_client_id,
                 "redirect_uri": redirect_uri,
                 "response_type": "code",
-                "scope": "openid email",
+                "scope": "openid email profile",
                 "state": state,
                 "code_challenge": code_challenge,
                 "code_challenge_method": "S256",
@@ -101,6 +101,7 @@ class HttpxOAuthClient(OAuthClient):
                 provider_user_id=str(userinfo["sub"]),
                 email=Email(userinfo["email"]),
                 email_verified=userinfo.get("email_verified") is True,
+                name=userinfo.get("name") or userinfo.get("given_name"),
             )
         except (httpx.HTTPError, KeyError, ValueError, InvalidEmail) as exc:
             log.warning("Google sign-in failed: %r", exc)

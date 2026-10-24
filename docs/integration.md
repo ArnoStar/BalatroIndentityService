@@ -116,3 +116,8 @@ Google sign-in, from the portal:
 
 Use each code once. React's development mode runs effects twice, so guard the
 callback, as the portal does.
+
+Linking from the account page works the same way, with
+`POST /oauth/google/link` (with the access token) in place of `authorize`. The
+callback's tokens are a new session for the same account: store them, and log
+out the old refresh token.

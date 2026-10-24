@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 
 from redis.asyncio import Redis
 
@@ -21,6 +22,7 @@ class RedisOAuthStateStore(OAuthStateStore):
                 "provider": pending.provider.value,
                 "redirect_uri": pending.redirect_uri,
                 "code_verifier": pending.code_verifier,
+                "link_to": str(pending.link_to) if pending.link_to else None,
             }
         )
         await self.redis.set(f"{self._PREFIX}{state}", value, ex=self.TTL)
@@ -35,4 +37,5 @@ class RedisOAuthStateStore(OAuthStateStore):
             provider=OAuthProvider(data["provider"]),
             redirect_uri=data["redirect_uri"],
             code_verifier=data["code_verifier"],
+            link_to=UUID(data["link_to"]) if data.get("link_to") else None,
         )
