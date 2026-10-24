@@ -1,0 +1,9 @@
+.venv
+.env
+# the JWT signing key made on the first start
+keys/
+
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__/
