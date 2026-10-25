@@ -13,8 +13,8 @@ from app.infrastructure.jwt.keys import SigningKey
 
 class JwtAccessTokenIssuer(AccessTokenIssuer):
     """Access tokens are RS256 JWTs:
-    ``{iss, aud, sub: user id, name: display name, iat, exp, jti,
-    typ: "access"}``."""
+    ``{iss, aud, sub: user id, name: display name, roles: [role...], iat, exp,
+    jti, typ: "access"}``."""
 
     def __init__(
         self,
@@ -35,6 +35,7 @@ class JwtAccessTokenIssuer(AccessTokenIssuer):
             "aud": self.audience,
             "sub": str(user.id),
             "name": user.display_name.value,
+            "roles": sorted(r.value for r in user.roles),
             "iat": now,
             "exp": now + self.lifetime,
             "jti": uuid.uuid4().hex,

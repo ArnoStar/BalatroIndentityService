@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.infrastructure.sqlalchemy.model.password_credential import (
         PasswordCredentialModel,
     )
+    from app.infrastructure.sqlalchemy.model.user_role import UserRoleModel
 
 
 class UserModel(Base):
@@ -37,4 +38,11 @@ class UserModel(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    # loaded with the user (its access token names them)
+    roles: Mapped[list["UserRoleModel"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
     )

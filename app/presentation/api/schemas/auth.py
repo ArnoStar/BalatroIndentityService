@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr, Field
 from app.application.dtos.authentication import AccountOutput
 from app.application.dtos.tokens import TokenPair
 from app.domain.value_object.oauth_provider import OAuthProvider
+from app.domain.value_object.role import Role
 
 # (the rules themselves are the domain's; these only bound the input size)
 PasswordField = Field(min_length=1, max_length=1024)
@@ -73,6 +74,7 @@ class AccountResponse(BaseModel):
     has_password: bool
     providers: list[OAuthProvider]
     created_at: datetime
+    roles: list[Role]
 
     @classmethod
     def of(cls, account: AccountOutput) -> "AccountResponse":
@@ -84,6 +86,7 @@ class AccountResponse(BaseModel):
             has_password=account.has_password,
             providers=account.providers,
             created_at=account.created_at,
+            roles=account.roles,
         )
 
 

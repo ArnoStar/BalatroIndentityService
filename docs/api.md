@@ -101,7 +101,8 @@ working until it expires, for at most 15 minutes.
   "email_verified": true,
   "has_password": true,
   "providers": ["google"],
-  "created_at": "2026-10-24T20:04:21.647539Z"
+  "created_at": "2026-10-24T20:04:21.647539Z",
+  "roles": ["developer"]
 }
 ```
 
@@ -214,6 +215,36 @@ answers with tokens for this account: keep them, they start a new session.
 | 404 `oauth_account_not_found` | not linked |
 | 409 `last_sign_in_method` | no password and no other provider: set a password first (`/auth/password/forgot`) |
 
+## Roles
+
+Roles say what an account may do beyond playing; access tokens name them
+(`roles`, see [integration.md](integration.md#roles)). The first admin is
+named from the command line (`python -m app.manage grant <email> admin`);
+admins then give roles here. The last admin can't lose the role.
+
+### `GET /roles`
+
+```json
+[{"role": "admin", "description": "manages accounts' roles; everything a developer may do"},
+ {"role": "developer", "description": "reads the bug reports and rebuilds runs from them"},
+ {"role": "tester", "description": "uses the game's test helpers (money, jokers, bosses) in their runs"}]
+```
+
+### `GET /admin/accounts?query=&role=&limit=50&offset=0` 🔒 admin
+
+Accounts whose email or display name contains `query` (any case), with
+`role` if given, oldest first:
+`{"accounts": [{id, email, display_name, email_verified, roles, created_at}], "total": 1}`.
+403 `forbidden` without the admin role (checked in the database, not in the
+token).
+
+### `PUT /admin/accounts/{id}/roles` 🔒 admin
+
+`{"roles": ["developer", "tester"]}`: the account's roles become these. Answers
+the account as in the list. 404 `user_not_found`, 409 `last_admin` when it would
+leave no admin, 422 for an unknown role. The change is logged, and the record
+keeps who gave each role and when.
+
 ## Service
 
 ### `GET /health`
@@ -239,5 +270,6 @@ Every error is a problem details object
 Switch on `code`, which is stable. `detail` is English text for people.
 `invalid_request` (422) adds `errors: [{loc, msg, type}]`, and
 `too_many_attempts` (429) adds `retry_after`. A 401 has a `WWW-Authenticate`
-header. 500 `internal_error` is a bug, and 503 `email_delivery_failed` means
+header. 403 `forbidden` means the admin role is needed, and 409 `last_admin`
+that the last admin can't lose it. 500 `internal_error` is a bug, and 503 `email_delivery_failed` means
 the email couldn't be sent.

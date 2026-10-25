@@ -21,6 +21,11 @@ from app.application.use_cases.delete_user import DeleteUser
 from app.application.use_cases.get_account import GetAccount
 from app.application.use_cases.initiate_oauth import InitiateOAuth, ListOAuthProviders
 from app.application.use_cases.logout import Logout, LogoutAll
+from app.application.use_cases.manage_roles import (
+    ListAccounts,
+    ListRoles,
+    SetAccountRoles,
+)
 from app.application.use_cases.password_reset import (
     RequestPasswordReset,
     ResetPassword,
@@ -127,6 +132,7 @@ class Container:
         self.list_oauth_providers = ListOAuthProviders(self.oauth_client)
         self.logout = Logout(self.sessions)
         self.logout_all = LogoutAll(self.sessions)
+        self.list_roles = ListRoles()
         self.initiate_oauth = InitiateOAuth(
             self.oauth_client,
             self.oauth_state_store,
@@ -189,6 +195,10 @@ class RequestContainer:
             oauth_account_repo=oauth_account_repo,
         )
         self.update_account = UpdateAccount(
+            user_repo=user_repo, unit_of_work=unit_of_work
+        )
+        self.list_accounts = ListAccounts(user_repo=user_repo)
+        self.set_account_roles = SetAccountRoles(
             user_repo=user_repo, unit_of_work=unit_of_work
         )
         self.delete_user = DeleteUser(

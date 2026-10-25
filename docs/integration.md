@@ -13,6 +13,7 @@ An access token is a JWT signed with RS256:
   "aud": "balatro",                        // JWT_AUDIENCE
   "sub": "5a68c181-8295-48a4-be76-90596b92e45b",  // the account id: the player
   "name": "Jimbo",                         // the display name when it was issued
+  "roles": ["developer"],                  // the account's roles when it was issued (often [])
   "iat": 1792873378, "exp": 1792874278,
   "jti": "9f0c…",
   "typ": "access"
@@ -68,6 +69,24 @@ tries again.
 Inside Docker, fetch the keys over the internal network
 (`http://identity:8000/...`). The issuer to expect is still the public URL,
 since that is what the service writes in `iss`.
+
+## Roles
+
+`roles` lists what the account may do beyond playing: `admin`, `developer`,
+`tester` (`GET <identity>/roles` describes them). The identity service gives
+them; **each service decides what a role allows there**, in its own code, and
+a role it doesn't know allows nothing. Today:
+
+| Role | BalatroWebAPI | BalatroBugReportService | the identity service |
+|---|---|---|---|
+| `admin` | everything below | reads and triages reports | lists accounts, gives and takes roles |
+| `developer` | rebuilds runs from histories (`POST /games/import`); debug commands on its runs | reads and triages reports | |
+| `tester` | debug commands on its runs (which then don't count for statistics) | | |
+
+Read the claim as a list of strings, and ignore anything else. A token names
+the roles it was issued with: a change reaches a player's tokens at their next
+refresh (at most 15 minutes). The identity service itself checks the database
+for its own admin endpoints, so taking the admin role away there is immediate.
 
 **What a valid token doesn't tell you:** an access token stays valid until it
 expires, up to 15 minutes, even after a logout, a password reset or a deleted

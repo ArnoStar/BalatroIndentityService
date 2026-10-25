@@ -5,6 +5,7 @@ from uuid import UUID
 from app.domain.entities.user import User
 from app.domain.value_object.display_name import DisplayName
 from app.domain.value_object.email import Email
+from app.domain.value_object.role import Role
 
 
 class UserRepo(Protocol):
@@ -20,4 +21,20 @@ class UserRepo(Protocol):
     ) -> None: ...
     async def delete_by_id(self, id: UUID) -> None:
         """Also deletes the user's password and linked accounts."""
+        ...
+
+    async def set_roles(
+        self, user_id: UUID, roles: frozenset[Role], granted_by: UUID | None
+    ) -> None:
+        """The account's roles become ``roles`` (the ones it keeps keep their
+        record of who gave them)."""
+        ...
+
+    async def count_with_role(self, role: Role) -> int: ...
+
+    async def search(
+        self, query: str | None, role: Role | None, limit: int, offset: int
+    ) -> tuple[list[User], int]:
+        """Accounts whose email or display name contains ``query`` (any case),
+        with ``role`` if given, oldest first; and how many there are."""
         ...
