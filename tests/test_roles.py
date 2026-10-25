@@ -154,3 +154,13 @@ def test_deleting_an_account_deletes_its_roles(
         "/admin/accounts", params={"role": "tester"}, headers=bearer(admin)
     )
     assert page.json()["total"] == 0
+
+
+def test_the_command_line_shows_an_account(
+    settings: Settings, admin: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli(settings, "show", ADMIN) == 0
+    assert capsys.readouterr().out.strip() == f"{ADMIN} (Admin): admin"
+    assert cli(settings, "show", PLAYER) == 0
+    assert capsys.readouterr().out.strip() == f"{PLAYER} (Player): no role"
+    assert cli(settings, "show", "nobody@example.com") == 1

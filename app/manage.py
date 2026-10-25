@@ -2,6 +2,7 @@
 the admin role through the API before there is one):
 
     python -m app.manage roles                       # who has which role
+    python -m app.manage show player@example.com     # one account's roles
     python -m app.manage grant player@example.com admin
     python -m app.manage revoke player@example.com tester
 
@@ -42,6 +43,12 @@ async def run(args: argparse.Namespace, database_url: str | None = None) -> int:
             if user is None:
                 print(f"no account with the email {args.email}", file=sys.stderr)
                 return 1
+            if args.command == "show":
+                print(
+                    f"{user.email.value} ({user.display_name.value}): "
+                    f"{', '.join(sorted(r.value for r in user.roles)) or 'no role'}"
+                )
+                return 0
             role = Role(args.role)
             roles = (
                 user.roles | {role} if args.command == "grant" else user.roles - {role}
@@ -69,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("roles", help="who has which role")
+    sub.add_parser("show", help="one account's roles").add_argument("email")
     for name in ("grant", "revoke"):
         p = sub.add_parser(name, help=f"{name} a role")
         p.add_argument("email")
