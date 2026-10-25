@@ -6,6 +6,7 @@ from app.domain.value_object.display_name import DisplayName
 from app.domain.value_object.email import Email
 from app.domain.value_object.oauth_provider import OAuthProvider
 from app.domain.value_object.password import Password
+from app.domain.value_object.role import Role
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,7 @@ class AccountOutput:
     has_password: bool
     providers: list[OAuthProvider]
     created_at: datetime
+    roles: list[Role]
 
 
 @dataclass(frozen=True)

@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.bootstrap.container import Container
 from app.infrastructure.config.settings import Settings, get_settings
 from app.presentation.api.exception_handler import register_exception_handlers
+from app.presentation.api.routes.admin import router as admin_router
 from app.presentation.api.routes.auth import router as auth_router
 from app.presentation.api.routes.meta import router as meta_router
 from app.presentation.api.routes.oauth import router as oauth_router
@@ -53,6 +54,7 @@ def create_app(
     app.include_router(meta_router)
     app.include_router(auth_router)
     app.include_router(oauth_router)
+    app.include_router(admin_router)
     return app
 
 

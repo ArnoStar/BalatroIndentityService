@@ -132,6 +132,21 @@ of two ways:
 The `CodeSender` port (`app/application/ports/code_sender.py`) is what the use
 cases see; the two ways are its adapters.
 
+## Roles
+
+Accounts can have roles (`admin`, `developer`, `tester`), which access tokens
+name (`roles`) and the other services turn into permissions (see
+[docs/integration.md](docs/integration.md#roles)). Name the first admin from
+the command line, then give roles in the portal (`/admin`) or with
+`PUT /admin/accounts/{id}/roles`:
+
+```
+uv run python -m app.manage grant you@example.com admin     # here, with .env's DATABASE_URL
+docker compose exec identity python -m app.manage grant you@example.com admin   # in the stack
+uv run python -m app.manage roles                            # who has which role
+uv run python -m app.manage revoke someone@example.com tester
+```
+
 ## Checks
 
 ```

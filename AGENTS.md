@@ -21,7 +21,7 @@ keep it there. Everything inside the code says "identity".
 ## Non-negotiable rules
 
 1. **The token contract is public.** Other services check access tokens with
-   the JWKS. Changing a claim (`iss`, `aud`, `sub`, `typ`, `name`), the
+   the JWKS. Changing a claim (`iss`, `aud`, `sub`, `typ`, `name`, `roles`), the
    algorithm (RS256) or the lifetimes changes them too: update
    `docs/integration.md`, BalatroWebAPI's `infrastructure/auth.py`, and the
    session code in BalatroPortal and BalatroFrontEnd together. `sub` is the
@@ -79,6 +79,11 @@ test.
 
 ## Adding things
 
+- **A role:** add it to `Role` and `ROLE_DESCRIPTIONS` (`domain/value_object/role.py`),
+  and to `docs/integration.md`'s table; the services that grant it something
+  map it in their own code (BalatroWebAPI `application/permissions.py`,
+  BalatroBugReportService `READER_ROLES`). Removing one leaves its rows,
+  which are then ignored.
 - **An endpoint:** a use case (with unit-of-work commit if it writes), wired in
   `RequestContainer` (or `Container` if it needs no database), a route, a
   schema, and an API test in `tests/`.

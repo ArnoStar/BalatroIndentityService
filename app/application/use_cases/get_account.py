@@ -35,4 +35,5 @@ class GetAccount:
             has_password=credential is not None,
             providers=sorted(providers),
             created_at=user.created_at,
+            roles=sorted(user.roles),
         )

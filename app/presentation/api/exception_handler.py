@@ -29,6 +29,7 @@ from app.application.exceptions.oauth import (
     OAuthProviderNotConfigured,
     RedirectUriNotAllowed,
 )
+from app.application.exceptions.roles import LastAdmin, NotAllowed
 from app.application.exceptions.token import InvalidToken
 from app.application.exceptions.user import UserAlreadyExist, UserDoesntExist
 from app.domain.exceptions import DomainError
@@ -47,6 +48,8 @@ STATUS: list[tuple[type[IdentityError], int]] = [
     (OAuthProviderNotConfigured, 404),
     (OAuthAccountDoesntExist, 404),
     (UserDoesntExist, 404),
+    (NotAllowed, 403),
+    (LastAdmin, 409),
     (UserAlreadyExist, 409),
     (OAuthAccountConflict, 409),
     (OAuthAccountInUse, 409),
